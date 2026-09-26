@@ -4,7 +4,7 @@ import json
 import hashlib
 import os
 import tempfile
-import fcntl
+from ._wincompat import flock_exclusive, flock_release
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -249,7 +249,7 @@ def screen_session(paths, session_id: str, request: str, origin: str = "user_ent
         directory = paths.vibe_dir
         directory.mkdir(parents=True, exist_ok=True)
         lock_handle = open(directory / ".session-gates.lock", "a+", encoding="utf-8")
-        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        flock_exclusive(lock_handle.fileno())
         target = directory / "session-gates.json"
         data = {}
         if target.is_file():
@@ -260,10 +260,10 @@ def screen_session(paths, session_id: str, request: str, origin: str = "user_ent
         digest = hashlib.sha256(request.encode("utf-8")).hexdigest()
         if old:
             if old.get("request_digest") != digest or old.get("origin") != origin:
-                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN); lock_handle.close()
+                flock_release(lock_handle.fileno()); lock_handle.close()
                 raise PermissionError("session binding conflict")
             result = SessionGate(old.get("status", "session_screened"), session_id, request, origin)
-            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN); lock_handle.close()
+            flock_release(lock_handle.fileno()); lock_handle.close()
             return result
         data[session_id] = {"status": status, "session_id": session_id, "origin": origin, "request_digest": digest, "evidence_ref": "session-gates.json#" + session_id}
         descriptor, temporary_name = tempfile.mkstemp(prefix=".session-gates.", dir=str(directory))
@@ -273,7 +273,7 @@ def screen_session(paths, session_id: str, request: str, origin: str = "user_ent
             os.replace(temporary_name, target)
         finally:
             if os.path.exists(temporary_name): os.unlink(temporary_name)
-        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN); lock_handle.close()
+        flock_release(lock_handle.fileno()); lock_handle.close()
     except (OSError, ValueError, json.JSONDecodeError) as error:
         raise PermissionError("session gate persistence failed") from error
     return gate

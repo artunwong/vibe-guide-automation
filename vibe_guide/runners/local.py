@@ -16,6 +16,11 @@ import uuid
 from ..authorization import validate_runtime_contract
 from ..adapters.task_provider import require_complex_monitor_dispatch
 from ..contracts import RunEvent, RunHandle, Runner
+from .._wincompat import (
+    IS_WINDOWS as _IS_WINDOWS,
+    process_start_token as _process_start_token,
+    spawn_worker,
+)
 
 
 _RESULT_WAIT_SECONDS = 1.0
@@ -61,15 +66,7 @@ def _read_json(path: Path) -> Dict[str, Any]:
     return value
 
 
-def _process_start_token(pid: int) -> Optional[str]:
-    result = subprocess.run(
-        ["ps", "-o", "lstart=", "-p", str(pid)],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    value = " ".join(result.stdout.split())
-    return value or None
+# _process_start_token is imported from .._wincompat (cross-platform).
 
 
 class LocalRunner(Runner):
@@ -88,6 +85,9 @@ class LocalRunner(Runner):
         self._roots = [Path(root).resolve() for root in (roots or ())]
         self._metadata_paths: Dict[str, Path] = {}
         self._processes: Dict[str, int] = {}
+        # Windows: cache the Popen handle so stop/poll manage the child directly
+        # instead of POSIX process-group signals.  POSIX leaves this empty.
+        self._popens: Dict[str, Any] = {}
         self.start_contracts = []
 
     @property
@@ -180,12 +180,8 @@ class LocalRunner(Runner):
             "-m",
             "vibe_guide.runners.local_worker",
         ]
-        pid = os.posix_spawn(
-            sys.executable,
-            worker_command,
-            environment,
-            setpgroup=0,
-        )
+        pid, proc = spawn_worker(worker_command, environment)
+        self._popens[handle.run_id] = proc
         token = None
         for _ in range(20):
             token = _process_start_token(pid)
@@ -195,8 +191,18 @@ class LocalRunner(Runner):
                 break
             time.sleep(0.01)
         if token is None and not result_path.exists():
-            os.killpg(pid, signal.SIGTERM)
-            os.waitpid(pid, 0)
+            if _IS_WINDOWS:
+                try:
+                    proc.terminate()
+                except (ProcessLookupError, OSError):
+                    pass
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+            else:
+                os.killpg(pid, signal.SIGTERM)
+                os.waitpid(pid, 0)
             raise RuntimeError("local runner process identity cannot be recorded")
         metadata = {
             "schema_version": 2,
@@ -303,7 +309,12 @@ class LocalRunner(Runner):
         result = _read_json(result_path)
         if handle.run_id in self._processes:
             try:
-                os.waitpid(self._processes[handle.run_id], os.WNOHANG)
+                if _IS_WINDOWS:
+                    popen = self._popens.get(handle.run_id)
+                    if popen is not None:
+                        popen.poll()
+                else:
+                    os.waitpid(self._processes[handle.run_id], os.WNOHANG)
             except ChildProcessError:
                 pass
         if (
@@ -344,19 +355,39 @@ class LocalRunner(Runner):
         if not current_token or current_token != metadata["process_identity"]:
             raise ValueError("local runner process identity cannot be proven")
         process_pid = self._processes.get(handle.run_id)
-        try:
-            os.killpg(pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
+        if _IS_WINDOWS:
+            popen = self._popens.get(handle.run_id)
+            try:
+                if popen is not None:
+                    popen.terminate()
+                elif process_pid is not None:
+                    os.kill(process_pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+            if popen is not None:
+                try:
+                    popen.wait(timeout=5)
+                except (subprocess.TimeoutExpired, OSError):
+                    pass
+            elif process_pid is not None:
+                try:
+                    os.waitpid(process_pid, 0)
+                except (ChildProcessError, OSError):
+                    pass
+        else:
+            try:
+                os.killpg(pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                if process_pid is not None:
+                    try:
+                        os.kill(process_pid, signal.SIGTERM)
+                    except (ProcessLookupError, PermissionError):
+                        pass
             if process_pid is not None:
                 try:
-                    os.kill(process_pid, signal.SIGTERM)
-                except (ProcessLookupError, PermissionError):
+                    os.waitpid(process_pid, 0)
+                except ChildProcessError:
                     pass
-        if process_pid is not None:
-            try:
-                os.waitpid(process_pid, 0)
-            except ChildProcessError:
-                pass
         if not result_path.exists():
             _atomic_json(
                 result_path,

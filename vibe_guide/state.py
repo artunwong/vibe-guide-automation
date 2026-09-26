@@ -3,7 +3,7 @@
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 import errno
-import fcntl
+from ._wincompat import flock_exclusive, flock_release, IS_WINDOWS as _IS_WINDOWS
 import hashlib
 import json
 import os
@@ -676,10 +676,11 @@ def interprocess_lock(lock_path: Path, timeout: float = 10.0) -> Iterator[None]:
         raise
     try:
         try:
-            os.fchmod(descriptor, 0o600)
+            if hasattr(os, "fchmod"):
+                os.fchmod(descriptor, 0o600)
             while True:
                 try:
-                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    flock_exclusive(descriptor, blocking=False)
                     break
                 except BlockingIOError:
                     if time.monotonic() >= deadline:
@@ -695,7 +696,7 @@ def interprocess_lock(lock_path: Path, timeout: float = 10.0) -> Iterator[None]:
             yield
         finally:
             try:
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
+                flock_release(descriptor)
             except OSError:
                 pass
     finally:
@@ -902,7 +903,8 @@ def append_event(
         finally:
             if descriptor is not None:
                 os.close(descriptor)
-            os.close(directory_descriptor)
+            if directory_descriptor is not None:
+                os.close(directory_descriptor)
 
 
 def _validate_snapshot(snapshot: RunSnapshot, records: List[Dict[str, Any]]) -> None:

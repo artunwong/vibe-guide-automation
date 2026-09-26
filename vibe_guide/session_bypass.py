@@ -8,7 +8,7 @@ for the entry session until expiry; the challenge itself cannot be replayed.
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
-import fcntl
+from ._wincompat import flock_exclusive, flock_release
 import hashlib
 import json
 import os
@@ -272,11 +272,11 @@ def _store_lock(paths: Any):
     path = _store_path(paths)
     lock_path = path.parent / ".session-bypass.lock"
     with open(lock_path, "a+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        flock_exclusive(handle.fileno())
         try:
             yield path
         finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            flock_release(handle.fileno())
 
 
 def _save_record_unlocked(
@@ -369,7 +369,7 @@ def _append_events(paths: Any, events: Tuple[Dict[str, Any], ...]) -> None:
         raise BypassError("session event log may not be a symlink")
     lock = directory / ".session-events.lock"
     with open(lock, "a+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        flock_exclusive(handle.fileno())
         existing_ids = set()
         if path.exists():
             try:
@@ -394,7 +394,7 @@ def _append_events(paths: Any, events: Tuple[Dict[str, Any], ...]) -> None:
                     existing_ids.add(event_id)
             stream.flush()
             os.fsync(stream.fileno())
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        flock_release(handle.fileno())
 
 
 def end_session(paths: Any, session_id: str) -> None:
