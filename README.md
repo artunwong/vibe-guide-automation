@@ -91,7 +91,7 @@ vibe init                 # 退出 3，不写入
 vibe init --confirm       # 创建缺失的最小 .vibe/ 结构
 ```
 
-已有 `AGENTS.md` 不会被覆盖。缺失规则时只在 `.vibe/proposals/agentsmd/` 生成建议（含指向入口协议的 `New Session Entry` 块），由 `vibe apply-agentsmd --confirm` 经人工评审后合入。外部 Skill 的安装不由 `init` 隐式触发。
+已有 `AGENTS.md` 不会被覆盖。缺失规则时只在 `.vibe/proposals/agentsmd/` 生成建议（能力真相、复杂请求入口、`New Session Entry`、`Engineering Principles` 四个规则块），由 `vibe apply-agentsmd --confirm` 经人工评审后合入。外部 Skill 的安装不由 `init` 隐式触发。
 
 ### V2 能力合同（监工与 worker 共用）
 

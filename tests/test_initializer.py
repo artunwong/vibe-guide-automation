@@ -118,3 +118,25 @@ class InitializerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'migration evidence is unverifiable'):
                 init_project(ProjectPaths.from_cwd(project), True)
             self.assertEqual(json.loads((project / '.vibe' / 'state.json').read_text()), legacy)
+
+    def test_outdated_engineering_principles_block_surfaces_drift_note(self):
+        from vibe_guide.scanner import (
+            ENGINEERING_PRINCIPLES_CURRENT_SENTINEL,
+            ENGINEERING_PRINCIPLES_MARKER,
+        )
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            # An AGENTS.md carrying an outdated (or locally rewritten)
+            # principles block: marker present, current sentinel absent.
+            (root / "AGENTS.md").write_text(
+                "# Project\n\n## " + ENGINEERING_PRINCIPLES_MARKER + "\n\n- 旧版措辞。\n",
+                encoding="utf-8",
+            )
+            result = init_project(ProjectPaths.from_cwd(root), True)
+            self.assertTrue(
+                any(
+                    ENGINEERING_PRINCIPLES_MARKER in note and "不一致" in note
+                    for note in result.notes
+                ),
+                result.notes,
+            )

@@ -166,30 +166,33 @@ class VibeEntryRuleBlockTests(unittest.TestCase):
 
     def test_block_registered_last_with_unique_heading(self):
         from vibe_guide.scanner import AGENTSMD_BLOCKS, VIBE_ENTRY_RULES
-        self.assertIs(AGENTSMD_BLOCKS[-1], VIBE_ENTRY_RULES)
+        self.assertIs(AGENTSMD_BLOCKS[-2], VIBE_ENTRY_RULES)
         self.assertTrue(VIBE_ENTRY_RULES.startswith("## New Session Entry"))
         headings = [block.splitlines()[0].strip() for block in AGENTSMD_BLOCKS]
         self.assertCountEqual(headings, set(headings), "two blocks share a heading")
 
     def test_missing_detection_is_independent_per_marker(self):
         from vibe_guide.scanner import (
-            AGENTSMD_BLOCKS, CAPABILITY_RULES, PRD_GUIDE_RULES,
-            VIBE_ENTRY_RULES, missing_agentsmd_blocks,
+            AGENTSMD_BLOCKS, CAPABILITY_RULES, ENGINEERING_PRINCIPLES,
+            PRD_GUIDE_RULES, VIBE_ENTRY_RULES, missing_agentsmd_blocks,
         )
         # An applied document carries the header the capability detection
         # requires, exactly as build_agentsmd_patch writes it.
         header = "# Vibe Guide\n\nProject guidance is maintained through the Vibe Guide.\n\n"
         both_old = header + CAPABILITY_RULES + PRD_GUIDE_RULES
-        self.assertEqual(missing_agentsmd_blocks(both_old), [VIBE_ENTRY_RULES])
-        all_three = both_old + VIBE_ENTRY_RULES
-        self.assertEqual(missing_agentsmd_blocks(all_three), [])
+        self.assertEqual(
+            missing_agentsmd_blocks(both_old),
+            [VIBE_ENTRY_RULES, ENGINEERING_PRINCIPLES],
+        )
+        all_four = both_old + VIBE_ENTRY_RULES + ENGINEERING_PRINCIPLES
+        self.assertEqual(missing_agentsmd_blocks(all_four), [])
         # Regression: an AGENTS.md with nothing still gets every block, in
-        # document order, with the entry block last.
+        # document order, with the principles block last.
         self.assertEqual(
             missing_agentsmd_blocks("# Project\n"),
-            [CAPABILITY_RULES, PRD_GUIDE_RULES, VIBE_ENTRY_RULES],
+            [CAPABILITY_RULES, PRD_GUIDE_RULES, VIBE_ENTRY_RULES, ENGINEERING_PRINCIPLES],
         )
-        self.assertEqual(len(AGENTSMD_BLOCKS), 3)
+        self.assertEqual(len(AGENTSMD_BLOCKS), 4)
 
     def test_block_points_at_materialized_skill_and_states_gate_discipline(self):
         from vibe_guide.scanner import VIBE_ENTRY_RULES
@@ -212,3 +215,31 @@ class VibeEntryRuleBlockTests(unittest.TestCase):
         self.assertIn("并入", VIBE_ENTRY_RULES)
         self.assertIn("首个强制状态行", VIBE_ENTRY_RULES)
         self.assertIn("不另起一轮评分或第二个门", VIBE_ENTRY_RULES)
+
+class EngineeringPrinciplesBlockTests(unittest.TestCase):
+    """The Engineering Principles block joins AGENTSMD_BLOCKS as the fourth,
+    marker-detected section.  It carries implementation principles to every
+    adopting project -- crucially including S0/S1 direct-execution sessions
+    that never touch the monitor or the worker protocol."""
+
+    def test_block_registered_last_with_unique_heading(self):
+        from vibe_guide.scanner import AGENTSMD_BLOCKS, ENGINEERING_PRINCIPLES
+        self.assertIs(AGENTSMD_BLOCKS[-1], ENGINEERING_PRINCIPLES)
+        self.assertTrue(ENGINEERING_PRINCIPLES.startswith("## Engineering Principles"))
+        headings = [block.splitlines()[0].strip() for block in AGENTSMD_BLOCKS]
+        self.assertCountEqual(headings, set(headings), "two blocks share a heading")
+
+    def test_block_states_all_principles_and_carries_versioned_sentinel(self):
+        from vibe_guide.scanner import (
+            ENGINEERING_PRINCIPLES, ENGINEERING_PRINCIPLES_CURRENT_SENTINEL,
+        )
+        for token in (
+            "兼容", "迁移或回退", "最简单实现", "最小版本", "职责",
+            "维护良好", "已有依赖", "后续维护", "成熟产品",
+        ):
+            self.assertIn(token, ENGINEERING_PRINCIPLES)
+        # PR #81 lesson: the marker that proves "a block is present" must
+        # itself be versioned, or an outdated block reads as current.
+        self.assertIn(ENGINEERING_PRINCIPLES_CURRENT_SENTINEL, ENGINEERING_PRINCIPLES)
+
+

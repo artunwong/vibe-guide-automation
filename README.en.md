@@ -83,7 +83,7 @@ Concurrency cap: `max_active_worker_sessions` in `.vibe/config.json` caps simult
 ## Governance boundaries
 
 - `scan` is read-only.
-- Existing `AGENTS.md` files are never overwritten; missing rules produce a proposal only (including a `New Session Entry` block pointing at the entry protocol), merged by `vibe apply-agentsmd --confirm` after human review.
+- Existing `AGENTS.md` files are never overwritten; missing rules produce a proposal only (four rule blocks: capability truth, complex-request entry, `New Session Entry`, and `Engineering Principles`), merged by `vibe apply-agentsmd --confirm` after human review.
 - Provider identity, login, task visibility, permissions, push, merge, and deploy are verified independently.
 - Tests, `PASS`, or `CANMERGE` markers are not approval or release truth.
 - Secrets, tokens, passwords, and private business data must not be stored in `.vibe/`, logs, plans, or chat.

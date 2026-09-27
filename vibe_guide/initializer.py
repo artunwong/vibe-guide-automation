@@ -5,6 +5,8 @@ import json, tempfile
 
 from .scanner import (
     AGENTSMD_BLOCKS,
+    ENGINEERING_PRINCIPLES_CURRENT_SENTINEL,
+    ENGINEERING_PRINCIPLES_MARKER,
     VIBE_ENTRY_CURRENT_SENTINEL,
     VIBE_ENTRY_RULE_MARKER,
     build_agentsmd_patch,
@@ -375,6 +377,17 @@ def init_project(paths, confirm):
             '可能是旧版块，也可能是本地改写；init 不会重复提案同名小节，'
             '.vibe/proposals/agentsmd/ 的既有提案也可能同样是旧版。'
             '请人工对照包内最新块（python -c "from vibe_guide.scanner import VIBE_ENTRY_RULES; print(VIBE_ENTRY_RULES)"）手动更新。'
+        )
+    if (
+        report.agentsmd_content
+        and ENGINEERING_PRINCIPLES_MARKER in report.agentsmd_content
+        and ENGINEERING_PRINCIPLES_CURRENT_SENTINEL not in report.agentsmd_content
+    ):
+        notes.append(
+            'AGENTS.md 的「' + ENGINEERING_PRINCIPLES_MARKER + '」块与当前版本不一致：'
+            '可能是旧版块，也可能是本地改写；init 不会重复提案同名小节，'
+            '.vibe/proposals/agentsmd/ 的既有提案也可能同样是旧版。'
+            '请人工对照包内最新块（python -c "from vibe_guide.scanner import ENGINEERING_PRINCIPLES; print(ENGINEERING_PRINCIPLES)"）手动更新。'
         )
     return InitResult(bool(created), created, notes)
 

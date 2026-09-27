@@ -205,8 +205,31 @@ VIBE_ENTRY_RULES = """## New Session Entry
 #: answers "a block is present"; this answers "it is the current block".
 VIBE_ENTRY_CURRENT_SENTINEL = "首个强制状态行"
 
+ENGINEERING_PRINCIPLES_MARKER = "Engineering Principles"
+ENGINEERING_PRINCIPLES = """## Engineering Principles
+
+- 改动旧接口、数据结构或行为前，先确认兼容要求；只有明确不需要兼容时才移除旧路径，不自行删除迁移或回退方案。
+- 选择能满足当前需求的最简单实现；不为尚未出现的需求增加抽象、配置或间接层。
+- 先做出能从头到尾跑通的最小版本，再逐步添加能力；不为尚未完成的复杂设计拆掉现有可用功能。
+- 保持组件职责清楚，相关代码放在合适的位置。
+- 成熟且维护良好的库能降低复杂度或提高可靠性时，优先使用；没有明确理由不重写常见功能。
+- 写新实现或加新依赖前，先检查项目已有依赖的文档、类型和现成能力。
+- 做架构选择时考虑后续维护，不用明知很快要推倒的临时方案糊弄过去。
+- 设计方案前先看成熟产品怎样解决同类问题；适合当前需求时沿用已验证的做法。
+"""
+
+#: Substring unique to the current principles-block wording.  Same lesson as
+#: VIBE_ENTRY_CURRENT_SENTINEL (PR #81): the marker proving "a block is
+#: present" must itself be versioned, or an outdated block reads as current.
+ENGINEERING_PRINCIPLES_CURRENT_SENTINEL = "不自行删除迁移或回退方案"
+
 #: Every rule block this release ships, in document order.
-AGENTSMD_BLOCKS = (CAPABILITY_RULES, PRD_GUIDE_RULES, VIBE_ENTRY_RULES)
+AGENTSMD_BLOCKS = (
+    CAPABILITY_RULES,
+    PRD_GUIDE_RULES,
+    VIBE_ENTRY_RULES,
+    ENGINEERING_PRINCIPLES,
+)
 
 
 def missing_agentsmd_blocks(existing):
@@ -232,6 +255,8 @@ def missing_agentsmd_blocks(existing):
         blocks.append(PRD_GUIDE_RULES)
     if VIBE_ENTRY_RULE_MARKER not in existing:
         blocks.append(VIBE_ENTRY_RULES)
+    if ENGINEERING_PRINCIPLES_MARKER not in existing:
+        blocks.append(ENGINEERING_PRINCIPLES)
     return blocks
 
 
