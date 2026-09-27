@@ -8,7 +8,7 @@ Vibe Guide 是一个本地 CLI：先扫描项目和规划任务，再用一次�
 
 ## 安装
 
-当前发行版本为 `4.9.0`。版本真相以仓库中匹配的 `v4.9` tag、对应提交和 Release 资产为准；版本引用的写法约定：反引号 v 形式（如本句的 tag）只用于当前 release tag，历史版本写作 V4.5.0 这样大写、无反引号的形式，否则 release-tag-gate 会判为旧 tag 残留。`dist/` 目录只是本地构建缓存，不是下载入口。交付验收分别覆盖 wheel、sdist 和源码安装；本地构建只生成验证用产物，不创建 tag/Release、push、merge 或 deploy。
+当前发行版本为 `4.9.1`。版本真相以仓库中匹配的 `v4.9.1` tag、对应提交和 Release 资产为准；版本引用的写法约定：反引号 v 形式（如本句的 tag）只用于当前 release tag，历史版本写作 V4.5.0 这样大写、无反引号的形式，否则 release-tag-gate 会判为旧 tag 残留。`dist/` 目录只是本地构建缓存，不是下载入口。交付验收分别覆盖 wheel、sdist 和源码安装；本地构建只生成验证用产物，不创建 tag/Release、push、merge 或 deploy。
 
 ### 安装与初始化前提
 
@@ -24,7 +24,7 @@ Vibe Guide 是一个本地 CLI：先扫描项目和规划任务，再用一次�
 
 1. 先查询最新 tag，不根据 README、`dist/` 文件名或历史记忆判断版本：
    `git ls-remote --tags --sort='-v:refname' https://github.com/halfmoon82/vibe-guide-automation.git 'refs/tags/v*'`
-2. 选择最新稳定 tag（当前应为 `v4.9`），核对 tag、提交和可下载 Release 资产版本一致；无法核对时保持 `unknown`，不要猜测。
+2. 选择最新稳定 tag（当前应为 `v4.9.1`），核对 tag、提交和可下载 Release 资产版本一致；无法核对时保持 `unknown`，不要猜测。
 3. 在目标环境安装该版本，并验证：
    `python3 -c "import vibe_guide; print(vibe_guide.__version__)"`
    `vibe --help`

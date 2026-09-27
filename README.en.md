@@ -6,7 +6,7 @@ Vibe Guide is a local CLI for scanning a project, planning work, and running a r
 
 ## Installation
 
-The current release is **4.9.0**. Treat the matching `v4.9` tag, commit, and Release assets as the version source of truth; `dist/` is only a local build cache, not a download entry point. Release validation covers the wheel, source distribution, and source installation separately. Local builds only produce verification artifacts; they do not create tags or releases, push, merge, or deploy.
+The current release is **4.9.1**. Treat the matching `v4.9.1` tag, commit, and Release assets as the version source of truth; `dist/` is only a local build cache, not a download entry point. Release validation covers the wheel, source distribution, and source installation separately. Local builds only produce verification artifacts; they do not create tags or releases, push, merge, or deploy.
 
 ### Installation and initialization prerequisites
 
@@ -22,7 +22,7 @@ When a user asks to install or upgrade, the Agent must:
 
 1. Query the newest tag instead of trusting README text, `dist/` filenames, or memory:
    `git ls-remote --tags --sort='-v:refname' https://github.com/halfmoon82/vibe-guide-automation.git 'refs/tags/v*'`
-2. Select the newest stable tag (currently `v4.9`) and verify that the tag, commit, and downloadable Release assets agree. If that cannot be verified, keep the result `unknown`.
+2. Select the newest stable tag (currently `v4.9.1`) and verify that the tag, commit, and downloadable Release assets agree. If that cannot be verified, keep the result `unknown`.
 3. Install that version and verify both:
    `python3 -c "import vibe_guide; print(vibe_guide.__version__)"`
    `vibe --help`
@@ -34,7 +34,7 @@ An Agent must not assume that downloading or installing the package automaticall
 Install the published wheel:
 
 ```bash
-python3 -m pip install --user --upgrade vibe_guide-4.9.0-py3-none-any.whl
+python3 -m pip install --user --upgrade vibe_guide-4.9.1-py3-none-any.whl
 vibe --help
 ```
 
