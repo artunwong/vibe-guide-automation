@@ -185,3 +185,16 @@ git diff --check
 - 能力判断必须引用 session contract 的 evidence_ref。
 - 没有证据时请求 refresh 或报告 UNKNOWN，不得直接终止。
 - 只有 runtime/provider 的结构化结果才能进入能力阻断状态。
+
+## Complex Request Entry
+
+- 复杂请求先按 `.vibe/proposals/skills/prd-guide/SKILL.md` 的协议引导：agent 出 PRD 内容与节点拆分，vibe 校验并派生全部工程字段。
+- 产品 spec 只写业务字段；工程字段由 `vibe plan --from-prd` 派生，写了会被拒。
+- `needs_confirmation` 项未闭合不得发布；产品决策只有产品经理选定后才是 approved。
+
+## New Session Entry
+
+- 开发/改动/排查类请求（「排查」含只读日志/生产数据分析）先按 `.vibe/proposals/skills/vibe-entry/SKILL.md` 的入口协议在会话内自评 S0/S1，不逢任务必过 vibe。
+- 凡经 S1 评分的请求，评分后输出一行评分与档位（形如 `S1：11→轻规划（不触碰 vibe）`）；>15 或拿不准时才 `vibe scan` 并 `vibe plan --request --s1` 进入正式路由；<=15 直接执行或轻规划。
+- 宿主另有强制入口/状态行协议时，S1 评分并入其首个强制状态行作为 `S1：` 字段输出，不另起一轮评分或第二个门。
+- 会话门阻塞必须停下报告，不得伪造或跳过。

@@ -22,3 +22,7 @@ dist/
 # Local environments / OS noise
 .venv/
 .DS_Store
+
+# vibe session state: proposals/plans are generated per session by the vibe
+# protocol and must not be tracked.
+/.vibe/
