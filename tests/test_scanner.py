@@ -216,6 +216,26 @@ class VibeEntryRuleBlockTests(unittest.TestCase):
         self.assertIn("首个强制状态行", VIBE_ENTRY_RULES)
         self.assertIn("不另起一轮评分或第二个门", VIBE_ENTRY_RULES)
 
+class CapabilityBlockDetectionTests(unittest.TestCase):
+    """Capability-block presence must be judged by the block's own
+    fingerprints, not by the English boilerplate header that fresh documents
+    happen to carry.  A pure-Chinese AGENTS.md with the block applied used to
+    be misjudged as missing it (v4.9 release-round finding)."""
+
+    def test_pure_chinese_document_with_block_is_not_reported_missing(self):
+        from vibe_guide.scanner import CAPABILITY_RULES, missing_agentsmd_blocks
+        document = "# 项目规则\n\n" + CAPABILITY_RULES
+        # Guard the premise: the fixture really carries no English header.
+        self.assertNotIn("Vibe Guide", document)
+        self.assertNotIn("project", document.lower())
+        self.assertNotIn(CAPABILITY_RULES, missing_agentsmd_blocks(document))
+
+    def test_document_without_block_is_still_reported_missing(self):
+        from vibe_guide.scanner import CAPABILITY_RULES, missing_agentsmd_blocks
+        document = "# 项目规则\n\n纯中文，没有任何规则块。\n"
+        self.assertIn(CAPABILITY_RULES, missing_agentsmd_blocks(document))
+
+
 class EngineeringPrinciplesBlockTests(unittest.TestCase):
     """The Engineering Principles block joins AGENTSMD_BLOCKS as the fourth,
     marker-detected section.  It carries implementation principles to every

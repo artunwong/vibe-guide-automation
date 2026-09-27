@@ -242,10 +242,12 @@ def missing_agentsmd_blocks(existing):
     if existing is None:
         return list(AGENTSMD_BLOCKS)
     blocks = []
+    # Judge by the block's own fingerprints only.  Requiring the English
+    # boilerplate header ('Vibe Guide' / 'project') misjudged every
+    # pure-Chinese AGENTS.md as missing the block -- even with the block
+    # applied verbatim -- and re-proposed it on every init (v4.9 finding).
     has_capability_rules = (
-        'Vibe Guide' in existing
-        and 'project' in existing.lower()
-        and CAPABILITY_RULE_MARKER in existing
+        CAPABILITY_RULE_MARKER in existing
         and 'evidence_ref' in existing
         and 'unknown_timeout' in existing
     )
