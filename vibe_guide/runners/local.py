@@ -181,7 +181,10 @@ class LocalRunner(Runner):
             "vibe_guide.runners.local_worker",
         ]
         pid, proc = spawn_worker(worker_command, environment)
-        self._popens[handle.run_id] = proc
+        if proc is not None:
+            # Windows only: keep the Popen handle so stop/poll manage the
+            # child directly.  POSIX spawn_worker returns None.
+            self._popens[handle.run_id] = proc
         token = None
         for _ in range(20):
             token = _process_start_token(pid)
@@ -191,7 +194,7 @@ class LocalRunner(Runner):
                 break
             time.sleep(0.01)
         if token is None and not result_path.exists():
-            if _IS_WINDOWS:
+            if proc is not None:
                 try:
                     proc.terminate()
                 except (ProcessLookupError, OSError):
@@ -199,7 +202,13 @@ class LocalRunner(Runner):
                 try:
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                except OSError:
                     pass
+                self._popens.pop(handle.run_id, None)
             else:
                 os.killpg(pid, signal.SIGTERM)
                 os.waitpid(pid, 0)
@@ -343,6 +352,7 @@ class LocalRunner(Runner):
         metadata["event_count"] = len(events)
         metadata["output_truncated"] = result["output_truncated"]
         _atomic_json(metadata_path, metadata)
+        self._popens.pop(handle.run_id, None)
         return events
 
     def stop(self, handle: RunHandle) -> None:
@@ -356,23 +366,35 @@ class LocalRunner(Runner):
             raise ValueError("local runner process identity cannot be proven")
         process_pid = self._processes.get(handle.run_id)
         if _IS_WINDOWS:
-            popen = self._popens.get(handle.run_id)
-            try:
-                if popen is not None:
-                    popen.terminate()
-                elif process_pid is not None:
-                    os.kill(process_pid, signal.SIGTERM)
-            except (ProcessLookupError, PermissionError, OSError):
-                pass
+            popen = self._popens.pop(handle.run_id, None)
             if popen is not None:
                 try:
-                    popen.wait(timeout=5)
-                except (subprocess.TimeoutExpired, OSError):
+                    popen.terminate()
+                except (ProcessLookupError, OSError):
                     pass
-            elif process_pid is not None:
                 try:
-                    os.waitpid(process_pid, 0)
-                except (ChildProcessError, OSError):
+                    popen.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    try:
+                        popen.kill()
+                    except OSError:
+                        pass
+                except OSError:
+                    pass
+            else:
+                # A runner recovered from a snapshot has neither a Popen
+                # handle nor a _processes entry (both are in-memory caches).
+                # Signal the identity-verified metadata pid directly; on
+                # Windows os.kill(pid, SIGTERM) maps to TerminateProcess.
+                # Never skip signalling: writing the stopped result below
+                # while the worker still runs would forge completion
+                # evidence.
+                try:
+                    os.kill(
+                        process_pid if process_pid is not None else pid,
+                        signal.SIGTERM,
+                    )
+                except (ProcessLookupError, PermissionError, OSError):
                     pass
         else:
             try:

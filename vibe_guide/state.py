@@ -834,25 +834,35 @@ def append_event(
     event_path = directory / "events.jsonl"
     normalized_provenance = _normalize_provenance(event, provenance)
     with interprocess_lock(_event_lock(paths, run_id)):
-        directory_flags = os.O_RDONLY
-        if hasattr(os, "O_DIRECTORY"):
-            directory_flags |= os.O_DIRECTORY
-        if hasattr(os, "O_NOFOLLOW"):
-            directory_flags |= os.O_NOFOLLOW
-        directory_descriptor = os.open(str(directory), directory_flags)
         descriptor = None
+        directory_descriptor: Optional[int] = None
         try:
-            flags = os.O_CREAT | os.O_RDWR | os.O_APPEND
+            flags = os.O_CREAT | os.O_RDWR | os.O_APPEND | getattr(os, "O_BINARY", 0)
             if hasattr(os, "O_NOFOLLOW"):
                 flags |= os.O_NOFOLLOW
-            try:
-                descriptor = os.open(
-                    event_path.name, flags, 0o600, dir_fd=directory_descriptor
-                )
-            except OSError as error:
-                if error.errno in {errno.ELOOP, getattr(errno, "EFTYPE", -1)}:
-                    raise ValueError("event log may not be a symlink") from error
-                raise
+            if os.open in os.supports_dir_fd:
+                directory_flags = os.O_RDONLY
+                if hasattr(os, "O_DIRECTORY"):
+                    directory_flags |= os.O_DIRECTORY
+                if hasattr(os, "O_NOFOLLOW"):
+                    directory_flags |= os.O_NOFOLLOW
+                directory_descriptor = os.open(str(directory), directory_flags)
+                try:
+                    descriptor = os.open(
+                        event_path.name, flags, 0o600, dir_fd=directory_descriptor
+                    )
+                except OSError as error:
+                    if error.errno in {errno.ELOOP, getattr(errno, "EFTYPE", -1)}:
+                        raise ValueError("event log may not be a symlink") from error
+                    raise
+            else:
+                # Windows: directories cannot be opened with os.open and
+                # dir_fd is unsupported, so fall back to a full-path open
+                # with an explicit symlink check (advisory; creating
+                # symlinks on Windows requires elevated privileges).
+                if directory.is_symlink() or event_path.is_symlink():
+                    raise ValueError("event log may not be a symlink")
+                descriptor = os.open(str(event_path), flags, 0o600)
             metadata = os.fstat(descriptor)
             if not stat.S_ISREG(metadata.st_mode):
                 raise ValueError("event log must be a regular file")
