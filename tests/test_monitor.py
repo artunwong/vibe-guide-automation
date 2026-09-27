@@ -2881,7 +2881,17 @@ class VisibleDispatchTests(unittest.TestCase):
         self.assertEqual(len(runner.start_calls), 1)
         self.assertEqual(snapshot.nodes["sdd-a"]["status"], "blocked_unknown")
 
-    def test_visible_sdd_delivery_without_in_session_review_is_blocked_unknown(self):
+    def test_visible_sdd_delivery_without_in_session_review_is_rejected_for_re_report(self):
+        """ISSUE-83: a missing review payload is a format error, not a brick.
+
+        The delivery used to be recorded and the handle popped before the
+        in-session review evidence was checked, bricking the run with no
+        re-report path.  Validate-first rejects it as a recoverable
+        ``acceptance_rejected`` audit event: no lifecycle transition, live
+        handle, same session may correct and re-report.
+        """
+        from vibe_guide.state import load_events
+
         payload, nodes = load_v46_dispatch_fixture()
         monitor, record = self.authorized_monitor(
             nodes, topology_rulings=payload["topology_rulings"]
@@ -2893,13 +2903,23 @@ class VisibleDispatchTests(unittest.TestCase):
 
         snapshot = monitor.tick(snapshot.run_id, runner)
 
-        self.assertEqual(snapshot.nodes["sdd-a"]["status"], "blocked_unknown")
-        self.assertIn("in-session review", snapshot.nodes["sdd-a"]["reason"])
+        current = snapshot.nodes["sdd-a"]
+        self.assertNotEqual(current["status"], "blocked_unknown", current.get("reason"))
+        self.assertNotEqual(current["status"], "accepted")
+        self.assertIn("sdd-a", snapshot.handles)
+        self.assertIsInstance(current.get("active_task"), dict)
+        rejections = [
+            record_ for record_ in load_events(self.paths, snapshot.run_id)
+            if record_["event"] == "acceptance_rejected"
+            and record_["data"].get("node_id") == "sdd-a"
+        ]
+        self.assertEqual(len(rejections), 1)
+        self.assertTrue(rejections[0]["data"].get("recoverable"))
         binding = load_task_binding(
             self.paths, "sdd-a", "developer", run_id=snapshot.run_id
         )
         self.assertNotEqual(binding.status, "archived")
-        # Fail closed: no reviewer task is ever started for visible-sdd.
+        # No reviewer task is ever started for visible-sdd.
         self.assertTrue(all(call["role"] == "developer" for call in runner.start_calls))
 
     def test_binding_topology_mismatch_fails_closed(self):

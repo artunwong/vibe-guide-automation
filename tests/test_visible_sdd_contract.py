@@ -365,16 +365,35 @@ class VisibleSddAcceptanceMonitorTests(unittest.TestCase):
             accepted[0]["contract_digest"], executable_contract_digest([monitor.nodes["sdd-a"]])
         )
 
-    def test_delivery_citing_foreign_protocol_is_blocked_unknown(self):
+    def test_delivery_citing_foreign_protocol_is_rejected_for_re_report(self):
+        """ISSUE-83: a foreign protocol pointer is a format error now.
+
+        The acceptance still never happens -- the pointer is not the shipped
+        protocol this acceptance certifies -- but the rejection is a
+        recoverable ``acceptance_rejected`` audit event with the session
+        handle kept alive, instead of a permanent brick with every recovery
+        path destroyed first.
+        """
+        from vibe_guide.state import load_events
+
         monitor, record = self._monitor()
         runner = self._runner(protocol="vibe_guide/protocols/dual-visible-worker.md")
         snapshot = monitor.start(record, runner)
 
         snapshot = monitor.tick(snapshot.run_id, runner)
 
-        self.assertEqual(snapshot.nodes["sdd-a"]["status"], "blocked_unknown")
-        self.assertIn("protocol", snapshot.nodes["sdd-a"]["reason"])
+        current = snapshot.nodes["sdd-a"]
+        self.assertNotEqual(current["status"], "blocked_unknown", current.get("reason"))
+        self.assertNotEqual(current["status"], "accepted")
+        self.assertIn("sdd-a", snapshot.handles)
         self.assertEqual(self._accepted_events(snapshot.run_id), [])
+        rejections = [
+            record_ for record_ in load_events(self.paths, snapshot.run_id)
+            if record_["event"] == "acceptance_rejected"
+            and record_["data"].get("node_id") == "sdd-a"
+        ]
+        self.assertEqual(len(rejections), 1)
+        self.assertTrue(rejections[0]["data"].get("recoverable"))
         self.assertNotEqual(self._binding_status(snapshot.run_id), "archived")
 
     def test_replay_accepts_when_recomputed_digest_matches(self):

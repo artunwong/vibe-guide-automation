@@ -29,7 +29,7 @@ from vibe_guide import monitor
 from vibe_guide.paths import ProjectPaths
 from vibe_guide.protocols import load_protocol
 from vibe_guide.adapters.task_provider import ProviderActionStore
-from vibe_guide.state import durable_projection, load_snapshot
+from vibe_guide.state import durable_projection, load_events, load_snapshot
 
 FIXTURE = Path(__file__).parent / "fixtures" / "pm-path" / "product-spec.json"
 REQUEST = "设计并实现保单查看页的 PDF 导出，集成日期范围筛选、编写测试并部署"
@@ -129,12 +129,19 @@ class IntegrationReviewPackageDerivationTests(unittest.TestCase):
         self.assertEqual(self.build(restated)["clearance"], {"p0": 0, "p1": 0, "p2": 0})
 
     def test_an_unregistered_finding_status_or_severity_fails_closed(self):
+        """Typo severities still raise; p3/p4 left this set on purpose.
+
+        The observation severities are whitelisted by name in ISSUE-83 and
+        covered positively in `test_issue_83_validate_first`; what must never
+        change is that an unrecognized severity (`critical`, `po`) is a
+        schema error, not a silent drop from the clearance.
+        """
         for finding in (
             {"severity": "p0", "status": "unresolved", "detail": "x"},
             {"severity": "p0", "status": "pending", "detail": "x"},
             {"severity": "p0", "detail": "x"},
             {"severity": "critical", "status": "open", "detail": "x"},
-            {"severity": "p3", "status": "open", "detail": "x"},
+            {"severity": "p5", "status": "open", "detail": "x"},
             {"status": "open", "detail": "x"},
             "p0 open",
         ):
@@ -463,8 +470,13 @@ class MailboxClosesTheRunTests(unittest.TestCase):
         if waits[key] == 1:
             return {"status": "timeout", "cursor": cursor}
         if action.get("role") == "reviewer":
+            evidence = (
+                reviewer_evidence(waits[key])
+                if callable(reviewer_evidence)
+                else reviewer_evidence
+            )
             return {"status": "completed", "cursor": cursor, "event": "accepted",
-                    "evidence": reviewer_evidence}
+                    "evidence": evidence}
         # ISSUE-04: regular nodes are ruled visible-sdd; the single worker
         # session's delivery must cite its in-session review clearance.
         return {"status": "completed", "cursor": cursor, "event": "complete",
@@ -490,11 +502,58 @@ class MailboxClosesTheRunTests(unittest.TestCase):
         self.assertTrue(evaluate_v41_closeout(snapshot).allowed)
         self.assertIn("整合", result.text[0] if isinstance(result.text, tuple) else result.text)
 
-    def test_a_free_form_reviewer_acceptance_is_visibly_blocked_not_silently_stranded(self):
+    def test_a_free_form_reviewer_acceptance_is_rejected_for_re_report_not_bricked(self):
+        """A claim-shaped error is a format error, not a terminal doubt.
+
+        ISSUE-83: this used to brick the run -- the accepted event was
+        recorded, the binding flipped and the handle popped before the schema
+        said no, leaving no recovery path.  Validate-first rejects it as pure
+        audit: no lifecycle event, live handle, same session may re-report.
+        """
         result, snapshot = self.serve("P0-P2 cleared")
         self.assertNotEqual(result.payload["status"], "complete", result.payload)
-        self.assertEqual(snapshot.nodes["integration-review"]["status"], "blocked_unknown")
+        node = snapshot.nodes["integration-review"]
+        self.assertNotEqual(node["status"], "accepted")
         self.assertEqual(snapshot.integration_review_evidence, {})
+        # The stable signals of a live re-report channel: the reviewer handle
+        # and its active task were never consumed, and every malformed report
+        # landed as a recoverable audit event rather than a lifecycle
+        # transition.  (Node `status` itself is not a stable signal here --
+        # the pre-existing "provider wait is pending" visibility flicker
+        # rewrites it between polls and the next poll repairs it.)
+        self.assertIn("integration-review", snapshot.handles)
+        self.assertIsInstance(node.get("active_task"), dict)
+        events = load_events(self.paths, snapshot.run_id)
+        rejections = [
+            record for record in events
+            if record["event"] == "acceptance_rejected"
+            and record["data"].get("node_id") == "integration-review"
+        ]
+        self.assertTrue(rejections, events)
+        self.assertTrue(rejections[0]["data"].get("recoverable"))
+        self.assertEqual(
+            [r for r in events if r["event"] == "accepted"
+             and r["data"].get("node_id") == "integration-review"],
+            [],
+        )
+
+    def test_a_corrected_claim_on_the_same_session_closes_the_run(self):
+        """The re-report channel end to end: malformed first, corrected after.
+
+        The reviewer session's second completed wait carries a free-form
+        string; the rejection keeps its handle alive, and the corrected claim
+        on the same session closes the run out.
+        """
+        def evidence_by_wait(count):
+            return "P0-P2 cleared" if count == 2 else CLEARED_CLAIM
+
+        result, snapshot = self.serve(evidence_by_wait)
+        self.assertEqual(result.payload["status"], "complete", result.payload)
+        self.assertEqual(snapshot.status, "complete")
+        package = {key: value for key, value in snapshot.integration_review_evidence.items()
+                   if key != "history"}
+        validate_integration_review_evidence(snapshot, package)
+        self.assertEqual(package["clearance"], {"p0": 0, "p1": 0, "p2": 0})
 
     def test_an_acceptance_that_still_reports_findings_is_blocked(self):
         claim = dict(CLEARED_CLAIM, findings=[
@@ -526,7 +585,11 @@ class MailboxClosesTheRunTests(unittest.TestCase):
                      iteration_compatibility={"status": "verified", "evidence": {"secret_scan": "clean"}})
         result, snapshot = self.serve(claim)
         self.assertNotEqual(result.payload["status"], "complete", result.payload)
-        self.assertEqual(snapshot.nodes["integration-review"]["status"], "blocked_unknown")
+        node = snapshot.nodes["integration-review"]
+        # ISSUE-83: a malformed verdict is rejected for re-report on the live
+        # handle; it no longer bricks the run, and it never reported complete.
+        self.assertNotEqual(node["status"], "accepted")
+        self.assertIn("integration-review", snapshot.handles)
         self.assertEqual(snapshot.integration_review_evidence, {})
 
     def test_the_scope_the_reviewer_is_held_to_comes_from_the_plan(self):

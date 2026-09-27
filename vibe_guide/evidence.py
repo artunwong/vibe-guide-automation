@@ -176,16 +176,25 @@ def _open_finding_counts(findings: Any) -> Dict[str, int]:
     What the convention buys is a trace -- a self-served exemption cannot stay
     spelled `waived`; it has to be restated as a claim that the finding was
     fixed, in the package a human later reads.
+
+    `p3`/`p4` are observation severities (ISSUE-83): a reviewer can register
+    advisory notes without them counting into the P0-P2 clearance.  The
+    whitelist is extended *by name, not by shape* -- anything else
+    (`critical`, `po`, `p00`, `high`) still raises, because a mistyped P0
+    must never be silently dropped from the clearance.
     """
     open_counts = {"p0": 0, "p1": 0, "p2": 0}
+    observation_severities = {"p3", "p4"}
     for finding in findings:
-        if not isinstance(finding, dict) or str(finding.get("severity", "")).lower() not in open_counts:
+        if not isinstance(finding, dict):
             raise ValueError("integration finding schema is invalid")
-        severity = str(finding["severity"]).lower()
+        severity = str(finding.get("severity", "")).lower()
+        if severity not in open_counts and severity not in observation_severities:
+            raise ValueError("integration finding schema is invalid")
         status = str(finding.get("status", finding.get("resolution", ""))).lower()
         if status not in {"open", "resolved", "accepted", "waived"}:
             raise ValueError("integration finding status is invalid")
-        if status != "resolved":
+        if severity in open_counts and status != "resolved":
             open_counts[severity] += 1
     return open_counts
 

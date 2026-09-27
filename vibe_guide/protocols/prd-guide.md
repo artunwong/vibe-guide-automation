@@ -215,7 +215,7 @@ for action in store.pending():          # .vibe/provider-actions/requests/ 里�
 
 ```json
 {
-  "findings": [{"severity": "p0|p1|p2", "status": "open|resolved|accepted|waived", "detail": "<一句话>"}],
+  "findings": [{"severity": "p0|p1|p2|p3|p4", "status": "open|resolved|accepted|waived", "detail": "<一句话>"}],
   "iteration_compatibility": {"status": "verified|compatible|reviewed", "evidence": "<怎么核实的>"},
   "test_runtime_delivery": {"status": "verified|reviewed", "evidence": "<怎么核实的>"},
   "out_of_scope": ["<聚合范围之外被改动的东西>"]
@@ -227,15 +227,21 @@ for action in store.pending():          # .vibe/provider-actions/requests/ 里�
 - 两个判断里的 `evidence` **必须是非空字符串**。给嵌套对象会被拒（`... needs a status and a non-empty evidence string`）：落盘时 `evidence` 整个字段会被打码，对象里"看起来像敏感信息"的键会被丢掉，于是写进去的包回读时不再合法——顶层会先报一次 `complete`，下一次读又退回去。所以这里只收一句话。
 
 - **只能给这四个键，多一个就是 schema 错误**。`run_id`、`plan_id`、`plan_revision`、四个 digest、`aggregated_scope`、`clearance`、`agentsmd_acceptance_refs`、`unverified_or_excluded` 全部由 vibe 从 run 自己和计划的整合合同派生。这不是省事：审查者不能改写它被追责的血缘，也不能缩小它被要求覆盖的范围。
-- 键名错、少键、或者给一个字符串，节点会落到 `blocked_unknown`，代码里的判定是
-  `integration review evidence cannot be derived (...)`。
+- 键名错、少键、或者给一个字符串，本次验收被记为 `acceptance_rejected`（纯审计事件，
+  代码里的判定是 `integration review evidence cannot be derived (...)`），**节点不砖化**：
+  reviewer 的会话 handle 保留，监工继续在同一会话上等待，修正 claim 后重报即可。
+  只有两类拒绝仍然 fail-closed 落 `blocked_unknown`：整合合同 digest 漂移（`plan.json` 在授权后
+  被改）和验收包里仍有未清零的 P0–P2——这两类不是格式错误，重报解决不了。
 
-**但这三条的报错原文在盘上读不到。** 节点的 `reason` 落盘时会被打码成
-`[REDACTED_PROVIDER_TEXT]`——`vibe status --json`、事件日志、隔离记录里都一样，四种
+**但拒绝的报错原文在盘上读不到。** 节点的 `reason` 落盘时会被打码成
+`[REDACTED_PROVIDER_TEXT]`——`vibe status --json`、事件日志、隔离记录里都一样，多种
 完全不同的拒收原因长得一模一样。所以别指望"看理由"定位，能读到的是两样东西：
 
-1. 这个节点的 `status` 是 `blocked_unknown`，这一轮的顶层 `status` 也是（只要还有别的节点在
-   重试，顶层会被改写成 `retry_pending`，它不告诉你是哪个节点，所以按节点看）。
+1. 事件日志里有这个节点的 `acceptance_rejected` 记录（`recoverable: true`），且 reviewer 的
+   会话 handle 还在（`snapshot.handles` 里能读到）——说明是格式拒绝、可以重报；
+   若节点落到 `blocked_unknown` 且 handle 已被隔离，则是 digest 漂移或未清零 P0–P2 那两类
+   fail-closed，得回到授权/返工流程。（顶层 `status` 会被还在重试的其他节点改写成
+   `retry_pending`，它不告诉你是哪个节点，所以按节点看。）
 2. 你回写的那份 claim 被记在这个节点的 `evidence` 列表里，**键名保留、值打码**。
    **被拒的时候它是最后一条；清零那次最后一条是派生出来的证据包，不是 claim**——清零时
    vibe 会在 claim 后面再追加那个包。
@@ -254,9 +260,12 @@ for action in store.pending():          # .vibe/provider-actions/requests/ 里�
 - **`evidence` 给空字符串、只有空格或换行、或者干脆不给这个键，和给嵌套对象一样被拒**，报的也是同一句
   `... needs a status and a non-empty evidence string`。这条在盘上尤其看不出来：真话、`""`、`"   "`
   打码后落盘完全一样，都是 `[REDACTED_PROVIDER_TEXT]`，所以只能回头查你发出去的原文。
-- **`findings[]` 的 `severity` 只收 `p0` / `p1` / `p2`，`status` 只收 `open` / `resolved` /
-  `accepted` / `waived`**。写 `p3` 判 `integration finding schema is invalid`，写 `pending`
-  判 `integration finding status is invalid`——都不是"多报一条"，是整包作废。
+- **`findings[]` 的 `severity` 只收 `p0` / `p1` / `p2` / `p3` / `p4`，`status` 只收 `open` /
+  `resolved` / `accepted` / `waived`**。`p3` / `p4` 是观察项，登记进 `findings` 但**不计入**
+  `clearance`；白名单是按名字扩的，写 `critical`、`po`、`p5` 照样判
+  `integration finding schema is invalid`（打错字的 P0 不许被静默吞掉），写 `pending` 判
+  `integration finding status is invalid`——都不是"多报一条"，是整包作废（记
+  `acceptance_rejected`，可修正重报）。
 - **两个判断的 `status` 也是封闭取值**：`iteration_compatibility` 只收 `verified` /
   `compatible` / `reviewed`，`test_runtime_delivery` 只收 `verified` / `reviewed`。写
   `ok`、`passed` 这类同义词判 `... evidence is incomplete`，写 `unknown` / `expired` /

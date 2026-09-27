@@ -192,6 +192,7 @@ _EVENT_DATA_KEYS = {
     "role",
     "run_id",
     "retryable_same_task",
+    "recoverable",
     "same_task_required",
     "attempt",
     "reason_class",

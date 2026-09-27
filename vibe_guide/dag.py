@@ -123,8 +123,17 @@ def append_integration_review_node(plan: Plan) -> Plan:
     contract = dict(projected_contract)
     contract.update({
         "input": "all business deliveries, review/rework evidence, and aggregate diff",
-        "output": "integration review report with P0/P1/P2 clearance and evidence references",
-        "error_behavior": "unknown, out-of-scope changes, or uncleared findings block acceptance",
+        # The claim schema is named here because this contract is the only
+        # material the dispatched reviewer is guaranteed to read (ISSUE-83);
+        # the full prose contract lives in prd-guide "整合审查节点的 accepted".
+        "output": "integration review report: a claim with exactly the keys "
+                  "findings, iteration_compatibility, test_runtime_delivery, "
+                  "out_of_scope (severity p0-p4, only resolved clears; p3/p4 "
+                  "are observations that never count into the clearance)",
+        "error_behavior": "malformed claims are rejected as acceptance_rejected "
+                          "for re-report on the same session; contract drift, "
+                          "unknown, out-of-scope changes, or uncleared findings "
+                          "block acceptance",
         "acceptance_example": "all required evidence is present and P0/P1/P2 clearance is zero",
         "risk_tags": ["integration", "read-only"],
         "read_only": True,

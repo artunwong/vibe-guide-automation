@@ -2351,6 +2351,9 @@ class Monitor:
             "contract_digest": contract_digest,
             "authorization_epoch": authorization_epoch,
         }
+        # Match the live path: a replayed acceptance must not resurrect the
+        # rejection text the lost snapshot still carried.
+        current["reason"] = None
         current["reviewer_identity"] = provenance["task_id"]
         current["review_generation"] = generation
         current["active_role"] = None
@@ -3492,54 +3495,88 @@ class Monitor:
             raise ValueError("event task binding is stale")
         return binding
 
-    def _record_integration_acceptance(
+    def _derive_integration_acceptance(
         self,
         snapshot: RunSnapshot,
-        node_id: str,
         claim: Any,
-    ) -> Optional[str]:
-        """Write the run-level review package, or say why it cannot be written.
+        contract: Any = None,
+        refs: Any = None,
+        excluded: Any = None,
+    ):
+        """Derive the run-level package without writing anything.
 
-        The integration reviewer's acceptance is the only production entry point
-        for ``integration_review_evidence``: without this write a run whose every
-        node is accepted still reports "integration review evidence is missing"
-        and never leaves ``running``.  The acceptance references and the permanent
-        exclusions come from the plan's integration contract rather than from the
-        reviewer, so a reviewer cannot shrink the scope it is held to.  Returns
-        ``None`` on success and a reason otherwise, so each caller can fail closed
-        in its own idiom.
-
-        The plan is re-read from disk on every resume, and the agents this run
-        dispatches can write to that file, so the contract is only worth reading
-        after it still matches the digest the authorization card froze.  Without
-        the comparison below, editing ``plan.json`` after authorization rewrote
-        the permanent exclusions in the run's own audit package while the run
-        still reported ``complete`` -- the same drift the PRD/Spec lineage check
-        in ``resume`` already refuses, on the same class of material.
+        Returns ``(package, None, False)`` on success and
+        ``(None, reason, recoverable)`` otherwise.  Splitting derivation from
+        the write is what lets the live acceptance path validate first: a
+        malformed claim (recoverable) is a format error the same reviewer can
+        correct and re-report on its still-live handle, while a contract
+        digest mismatch or open P0-P2 findings stay fail-closed.  Only a
+        schema/derivation failure is recoverable -- everything else is an
+        evidence or scope problem a re-report cannot fix.
         """
-        contract = integration_contract_projection(self.plan, list(self.nodes.values()))
-        record = self._snapshot_record(snapshot)
-        if digest_integration_contract(contract) != record.integration_contract_digest:
-            return "integration contract no longer matches the authorized digest"
-        if contract:
-            refs = contract.get("agentsmd_acceptance_refs") or []
-            excluded = contract.get("unverified_or_excluded") or []
-        else:
-            # No authorized contract to hold the reviewer to; the plan's own
-            # fields are all there is, and the digest above is empty on both
-            # sides, so nothing here was verified either way.
-            refs = getattr(self.plan, "agentsmd_acceptance_refs", [])
-            excluded = getattr(self.plan, "unverified_or_excluded", [])
+        if contract is None or refs is None or excluded is None:
+            contract = integration_contract_projection(self.plan, list(self.nodes.values()))
+            record = self._snapshot_record(snapshot)
+            if digest_integration_contract(contract) != record.integration_contract_digest:
+                return None, "integration contract no longer matches the authorized digest", False
+            if contract:
+                refs = contract.get("agentsmd_acceptance_refs") or []
+                excluded = contract.get("unverified_or_excluded") or []
+            else:
+                refs = getattr(self.plan, "agentsmd_acceptance_refs", [])
+                excluded = getattr(self.plan, "unverified_or_excluded", [])
         try:
             package = build_integration_review_evidence(
                 snapshot, claim, list(refs or []), list(excluded or [])
             )
         except (TypeError, ValueError) as error:
-            return "integration review evidence cannot be derived ({})".format(error)
+            return None, "integration review evidence cannot be derived ({})".format(error), True
         if any(package["clearance"][severity] for severity in ("p0", "p1", "p2")):
-            return "integration review acceptance still reports open P0-P2 findings"
-        _record_integration_review(snapshot, package)
-        return None
+            return None, "integration review acceptance still reports open P0-P2 findings", False
+        return package, None, False
+
+    def _reject_acceptance_format(
+        self,
+        snapshot: RunSnapshot,
+        node_id: str,
+        active: Dict[str, Any],
+        reason: str,
+    ) -> None:
+        """Record a validate-first rejection as pure audit and keep the handle.
+
+        A malformed acceptance/delivery payload is a format error in the same
+        task's report, not an unknown side effect: the event is not recorded
+        as a lifecycle transition, the binding is not flipped, and the handle
+        stays in ``snapshot.handles`` so the next poll re-issues the provider
+        wait on the same session -- the reviewer/worker can correct the
+        payload and report again.  Replay treats ``acceptance_rejected`` as a
+        no-op for the same reason: nothing here mutated lifecycle state.
+
+        The node ``reason`` is a fixed, decision-marker-free text: the raw
+        validator reason stays only in the redacted audit event, because
+        free-form reasons (e.g. key names like ``out_of_scope``) otherwise
+        trip the user-facing "needs your decision" mapping for an error the
+        same session recovers from on its own.  Crash-window trade-off: if
+        the process dies after this event is appended but before the
+        snapshot is saved, the replayed no-op restores neither the evidence
+        entry nor this reason -- the durable trail is the audit event alone.
+        """
+        current = snapshot.nodes[node_id]
+        current["reason"] = (
+            "acceptance report format error; "
+            "the same session can correct and re-report"
+        )
+        self._record(
+            snapshot,
+            "acceptance_rejected",
+            {
+                "run_id": snapshot.run_id,
+                "node_id": node_id,
+                "reason": redact_provider_text(reason),
+                "recoverable": True,
+            },
+            active,
+        )
 
     def _apply_event(
         self,
@@ -3587,6 +3624,29 @@ class Monitor:
                 )
                 if not gate.complete:
                     self._mark_blocked_unknown(snapshot, node_id, "; ".join(gate.reasons))
+                    return
+            visible_sdd_delivery = (
+                role == "developer"
+                and self._node_dispatch_topology(self.nodes[node_id]) == TOPOLOGY_VISIBLE_SDD
+            )
+            if visible_sdd_delivery:
+                # Validate first (ISSUE-83): the in-session review evidence is
+                # checked before the delivery event is recorded, the binding is
+                # flipped, or the handle is popped.  A missing/malformed field
+                # or a foreign protocol pointer is a format error the same
+                # worker session can correct and re-report; only contract
+                # digest drift stays fail-closed.
+                review_failure = self._validate_visible_sdd_review(
+                    snapshot, node_id, event, current
+                )
+                if review_failure is not None:
+                    reason, recoverable = review_failure
+                    if recoverable:
+                        self._reject_acceptance_format(
+                            snapshot, node_id, active, reason
+                        )
+                        return
+                    self._mark_blocked_unknown(snapshot, node_id, reason)
                     return
             self._record_runner_event(snapshot, node_id, event, active)
             if role != "developer":
@@ -3820,6 +3880,24 @@ class Monitor:
                     "dual-visible acceptance refused: contract digest does not match the live node contract",
                 )
                 return
+            integration_package = None
+            if node_id == "integration-review":
+                # Validate first (ISSUE-83): derive the run-level package
+                # before the event is recorded, the binding is flipped, or
+                # the handle is popped.  A malformed claim is a format error
+                # the same reviewer can correct and re-report on its live
+                # handle; bricking here destroyed every recovery path first.
+                integration_package, rejection, recoverable = (
+                    self._derive_integration_acceptance(snapshot, evidence)
+                )
+                if rejection is not None:
+                    if recoverable:
+                        self._reject_acceptance_format(
+                            snapshot, node_id, active, rejection
+                        )
+                        return
+                    self._mark_blocked_unknown(snapshot, node_id, rejection)
+                    return
             acceptance_event = RunEvent(
                 event.event,
                 {
@@ -3845,6 +3923,8 @@ class Monitor:
                 "contract_digest": current["contract_digest"],
                 "authorization_epoch": snapshot.authorization_digest,
             }
+            # A corrected re-report must not keep the rejection text.
+            current["reason"] = None
             current["active_role"] = None
             current["active_task"] = None
             current["quarantine"] = None
@@ -3859,13 +3939,9 @@ class Monitor:
             if node_id == "integration-review":
                 # The acceptance of this node is the run-level closeout, so the
                 # clearance is whatever the derived package says rather than an
-                # assumed zero; `_record_integration_acceptance` writes both.
-                reason = self._record_integration_acceptance(
-                    snapshot, node_id, evidence
-                )
-                if reason is not None:
-                    self._mark_blocked_unknown(snapshot, node_id, reason)
-                    return
+                # assumed zero.  The package was already derived and validated
+                # before any state changed; this write cannot fail validation.
+                _record_integration_review(snapshot, integration_package)
             else:
                 current["review_clearance"] = {"p0": 0, "p1": 0, "p2": 0}
             self._archive_pair(snapshot, node_id)
@@ -3968,20 +4044,21 @@ class Monitor:
         snapshot.nodes[node_id]["active_task"] = None
         return True
 
-    def _accept_visible_sdd_delivery(
+    def _validate_visible_sdd_review(
         self,
         snapshot: RunSnapshot,
         node_id: str,
         event: RunEvent,
         current: Dict[str, Any],
-    ) -> None:
-        """Accept a visible-sdd node from its in-session review evidence.
+    ):
+        """Pure validation of the in-session review evidence; no writes.
 
-        The single worker session carries the whole SDD loop (implement,
-        independent read-only review, rework, re-review); the delivery event
-        must therefore cite the in-session review clearance.  Missing or
-        malformed evidence is fail-closed: the node goes ``blocked_unknown``
-        and keeps occupying its session slot instead of faking acceptance.
+        Returns ``None`` when the delivery may be accepted, otherwise
+        ``(reason, recoverable)``.  Missing or malformed evidence and a
+        foreign protocol pointer are format errors (recoverable -- the same
+        worker session can correct and re-report on its live handle, per
+        ISSUE-83); an unreadable or drifted node contract is an evidence
+        problem and stays fail-closed.
         """
         review = event.data.get("in_session_review")
         clearance = review.get("clearance") if isinstance(review, dict) else None
@@ -3999,22 +4076,12 @@ class Monitor:
             and bool(evidence_ref.strip())
         )
         if not valid:
-            self._mark_blocked_unknown(
-                snapshot,
-                node_id,
-                "visible-sdd delivery lacks verifiable in-session review evidence",
-            )
-            return
+            return "visible-sdd delivery lacks verifiable in-session review evidence", True
         if review.get("protocol") != VISIBLE_SDD_PROTOCOL_REF:
             # The session must have followed the protocol shipped with this
             # package; a different or missing pointer is not the visible-sdd
             # review this acceptance certifies.
-            self._mark_blocked_unknown(
-                snapshot,
-                node_id,
-                "visible-sdd delivery cites an unknown in-session review protocol",
-            )
-            return
+            return "visible-sdd delivery cites an unknown in-session review protocol", True
         # ISSUE-02: the acceptance evidence is bound to the node contract it
         # reviewed.  The carried digest is the dispatch-time node digest and
         # must still equal the digest recomputed from the live contract; an
@@ -4022,23 +4089,50 @@ class Monitor:
         # of writing an empty, placeholder or stale digest.
         try:
             live_digest = self._live_node_contract_digest(node_id)
+        except ValueError as error:
+            return "visible-sdd acceptance refused: {}".format(error), False
+        if current.get("contract_digest") != live_digest:
+            return (
+                "visible-sdd acceptance refused: contract digest does not match the live node contract",
+                False,
+            )
+        return None
+
+    def _accept_visible_sdd_delivery(
+        self,
+        snapshot: RunSnapshot,
+        node_id: str,
+        event: RunEvent,
+        current: Dict[str, Any],
+    ) -> None:
+        """Accept a visible-sdd node from its in-session review evidence.
+
+        The single worker session carries the whole SDD loop (implement,
+        independent read-only review, rework, re-review); the delivery event
+        must therefore cite the in-session review clearance.  The live
+        delivery path validates this evidence before any state changes
+        (ISSUE-83) and only reaches this function with a payload that passed;
+        the fail-closed checks are kept here so a direct or replay-adjacent
+        caller can never write an acceptance the validator would refuse.
+        """
+        review = event.data.get("in_session_review")
+        evidence_ref = review.get("evidence_ref") if isinstance(review, dict) else None
+        failure = self._validate_visible_sdd_review(snapshot, node_id, event, current)
+        if failure is not None:
+            reason, _recoverable = failure
+            self._mark_blocked_unknown(snapshot, node_id, reason)
+            return
+        try:
             acceptance = VisibleSddAcceptance(
                 contract_digest=current.get("contract_digest"),
                 protocol_ref=VISIBLE_SDD_PROTOCOL_REF,
                 evidence_ref=evidence_ref.strip(),
             )
-        except ValueError as error:
+        except (AttributeError, ValueError) as error:
             self._mark_blocked_unknown(
                 snapshot,
                 node_id,
                 "visible-sdd acceptance refused: {}".format(error),
-            )
-            return
-        if acceptance.contract_digest != live_digest:
-            self._mark_blocked_unknown(
-                snapshot,
-                node_id,
-                "visible-sdd acceptance refused: contract digest does not match the live node contract",
             )
             return
         # The in-session reviewer acts under the same single session
@@ -4088,6 +4182,8 @@ class Monitor:
             "contract_digest": current["contract_digest"],
             "authorization_epoch": snapshot.authorization_digest,
         }
+        # A corrected re-report must not keep the rejection text.
+        current["reason"] = None
         current["review_clearance"] = {"p0": 0, "p1": 0, "p2": 0}
         current["quarantine"] = None
         self._archive_pair(snapshot, node_id)
@@ -4863,6 +4959,9 @@ class Monitor:
                     "contract_digest": contract_digest,
                     "authorization_epoch": authorization_epoch,
                 }
+                # Match the live path: a replayed acceptance must not
+                # resurrect the rejection text the lost snapshot carried.
+                current["reason"] = None
                 current["active_role"] = None
                 current["active_task"] = None
                 current["quarantine"] = None
@@ -5002,6 +5101,12 @@ class Monitor:
                 self._release_node_lease(snapshot, node_id)
             elif record["event"] == "pair_archived":
                 current["pair_archived"] = True
+            elif record["event"] == "acceptance_rejected":
+                # Validate-first rejections (ISSUE-83) are pure audit: the
+                # live pass mutated no lifecycle state -- the handle, binding
+                # and node status were all left for the same task's corrected
+                # re-report -- so replay must mutate nothing either.
+                pass
             else:
                 current["status"] = "blocked_unknown"
                 current["reason"] = "unapplied event needs manual reconciliation"

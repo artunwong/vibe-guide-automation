@@ -49,7 +49,38 @@ git diff <ref>...<ref>    # 看分支间差异
 - 发现违规时：该轮审查结论作废，节点转 **blocked**，并在会话交付中**记录**违规事实（谁、改了哪些文件、时间）供监工收口。
 - 违规后不得以"改得对"为由追认；修复只能由 dev 子代理完成、由 review 子代理复审。
 
-## 5. 与本协议无关的事项
+## 5. 交付 payload 契约（监工校验字段）
+
+worker 会话的交付事件由监工**先校验、后落账**：以下字段缺失或形状非法时，本次交付被记为
+`acceptance_rejected`（纯审计事件，不入生命周期），会话 handle 保留，监工在同一会话上继续等待——
+**worker 修正后重报即可，run 不会因此砖化**。只有节点合同 digest 漂移（篡改/合同被改）仍然
+fail-closed，不可重报。
+
+交付事件必须携带两块结构：
+
+1. **`in_session_review`（本会话内 SDD 审查证据，必需）**：
+
+   ```json
+   {
+     "protocol": "vibe_guide/protocols/visible-sdd-worker.md",
+     "evidence_ref": "<本轮审查证据的非空引用，如 会话#轮次>",
+     "clearance": {"p0": 0, "p1": 0, "p2": 0}
+   }
+   ```
+
+   - `protocol` 必须逐字等于本文件路径（`vibe_guide/protocols/visible-sdd-worker.md`），引用别的协议
+     等于这次交付没有经过本协议规定的会话内审查；
+   - `clearance` 三个键都必须是整数 `0`（布尔不算）——P0–P2 未清零就返工，不要交付；
+   - `evidence_ref` 必须是非空字符串，指向第 3 节写入交付记录的那轮审查结论。
+
+2. **`delivery_evidence`（交付证据门，引擎要求时必需）**：一个嵌套对象，含
+   `completion_marker`、`delivery_path`、`thread_status`（只认 `complete` / `completed` /
+   `DELIVERED`）。摊平成顶层三个字段不算，门读不到。
+
+被拒后如何重报：按上面的形状补齐字段，在同一会话里再次交付即可；旧的 `acceptance_rejected`
+记录保留在事件日志里作为审计痕迹，不阻塞后续 acceptance。
+
+## 6. 与本协议无关的事项
 
 - 本协议不定义节点合同格式、授权卡签发或监工调度，那些由 vibe 核心与 prd-guide 协议负责。
 - deploy、release、生产数据变更永远不在 worker 会话权限内，无论审查结论如何。
