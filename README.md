@@ -10,6 +10,14 @@ Vibe Guide 是一个本地 CLI：先扫描项目和规划任务，再用一次�
 
 当前发行版本为 `4.8.0`。版本真相以仓库中匹配的 `v4.8` tag、对应提交和 Release 资产为准；版本引用的写法约定：反引号 v 形式（如本句的 tag）只用于当前 release tag，历史版本写作 V4.5.0 这样大写、无反引号的形式，否则 release-tag-gate 会判为旧 tag 残留。`dist/` 目录只是本地构建缓存，不是下载入口。交付验收分别覆盖 wheel、sdist 和源码安装；本地构建只生成验证用产物，不创建 tag/Release、push、merge 或 deploy。
 
+### 安装与初始化前提
+
+- **运行环境**：Python ≥ 3.9，零第三方依赖（纯标准库）；pip 或 pipx 安装，wheel / sdist / 源码三种方式均可（三种安装方式均有测试钉住协议文件随包发布）。
+- **装后验证**：`python3 -c "import vibe_guide; print(vibe_guide.__version__)"` 与 `vibe --help`。
+- **初始化顺序**：进入项目先 `vibe scan --json`（只读）；确认初始化才 `vibe init --confirm`；AGENTS.md 规则块经 `vibe apply-agentsmd --confirm` 人工评审后合入。
+- **宿主框架零要求**：入口协议完全自包含。宿主装有强制门/状态行类框架（如对齐门卡片）时，S1 评分并入其首个强制状态行作为 `S1：` 字段输出，不另起一轮评分或第二个门；未装则独立输出一行 S1 结果。
+- **存量项目升级**：物化文件（`.vibe/proposals/skills/*/SKILL.md` 与 AGENTS.md 已合入块）永不自动改写；新版 init 检测到与随包内容不一致时给出漂移提示，人工 diff 后手动合并。
+
 ### 给 Agent 的安装协议
 
 当用户要求安装或升级时，Agent 必须按以下顺序执行并回报证据：
