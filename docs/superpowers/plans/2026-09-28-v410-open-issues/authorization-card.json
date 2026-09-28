@@ -1,0 +1,188 @@
+{
+  "active_pair_limit": 9,
+  "agent_id": "claude-code",
+  "allowed_actions": [
+    "accept",
+    "develop",
+    "review",
+    "rework",
+    "test"
+  ],
+  "dag_revision": 1,
+  "decision_digest": "04ae458b906cf7c04a4e9c9e7e995bd9dc8229360ff6704f2d36acbf7adb3d64",
+  "deploy_authorization": "separate",
+  "digest": "ee363eff1cab9f0a5bbbf121c368c2279448fef1ef88a8944445eb772b9b2601",
+  "engine_authorization_digest": "ee363eff1cab9f0a5bbbf121c368c2279448fef1ef88a8944445eb772b9b2601",
+  "engine_evidence_ref": "engine-attestation:75cb685a27455fc3",
+  "engine_mode": "dag",
+  "excluded_actions": [
+    "create_mr",
+    "deploy",
+    "merge",
+    "push"
+  ],
+  "execution_engine": "vibeguide_monitor",
+  "explicit_execution_mode_override": {},
+  "file_scope": [
+    "README.en.md",
+    "README.md",
+    "tests/test_issue_88_delivery_gate.py",
+    "tests/test_issue_93_protocol_delivery.py",
+    "tests/test_prd_guide_protocol.py",
+    "tests/test_scanner.py",
+    "tests/test_skill_install_cli.py",
+    "tests/test_skills.py",
+    "tests/test_supervisor_registry.py",
+    "tests/test_visible_sdd_contract.py",
+    "tests/test_visible_sdd_methodology.py",
+    "tests/test_worker_push_delivery.py",
+    "vibe_guide/adapters/task_provider.py",
+    "vibe_guide/cli.py",
+    "vibe_guide/evidence.py",
+    "vibe_guide/monitor.py",
+    "vibe_guide/protocols/prd-guide.md",
+    "vibe_guide/protocols/visible-sdd-worker.md",
+    "vibe_guide/runners/provider_action.py",
+    "vibe_guide/scanner.py",
+    "vibe_guide/skills.py",
+    "vibe_guide/state.py",
+    "vibe_guide/supervisor.py",
+    "vibe_guide/upgrade.py"
+  ],
+  "integration_contract_digest": "b1372e5fd4fa7a533439f3ffcf7ef4e8ab6d9c230c5dfc3831fe8725e19580df",
+  "integration_node_id": "integration-review",
+  "integration_review_scope": [
+    "整合 Review",
+    "独立 reviewer",
+    "P0–P2 清零",
+    "只读聚合证据"
+  ],
+  "node_contract_digest": "3bb6392459d26514e9778805072fe51b06e2708b544dfbc6481b9c06263a8e54",
+  "node_ids": [
+    "delivery-gate-rereport",
+    "inline-sdd-protocol",
+    "integration-review",
+    "prd-guide-methodology",
+    "remove-dead-upgrade",
+    "review-methodology",
+    "skill-subdir-install",
+    "supervisor-registry",
+    "worker-push-delivery"
+  ],
+  "plan_id": "v410-open-issues",
+  "plan_version": 1,
+  "remote_git_actions": "deny",
+  "remote_git_actions_options": [
+    "allow",
+    "deny"
+  ],
+  "remote_git_actions_scope": [
+    "commit",
+    "push",
+    "create_pr",
+    "create_mr",
+    "merge"
+  ],
+  "required_workflow": [
+    "s0",
+    "s1",
+    "requirements",
+    "product_decision",
+    "prd",
+    "spec_issue",
+    "dag_audit",
+    "plan_confirmation",
+    "authorization_card",
+    "user_authorization"
+  ],
+  "schema_version": 2,
+  "skipped_nodes": [],
+  "topology_summary": {
+    "background": 0,
+    "by_topology": {
+      "background": 0,
+      "dual-visible": 9,
+      "visible-sdd": 0
+    },
+    "total": 9,
+    "visible": 9
+  },
+  "worker_scope": [
+    "integration-reviewer",
+    "worker"
+  ],
+  "workers": [
+    {
+      "limitations": [],
+      "mode": "visible",
+      "node_id": "delivery-gate-rereport",
+      "role": "developer",
+      "session_source": "worker",
+      "topology": "dual-visible"
+    },
+    {
+      "limitations": [],
+      "mode": "visible",
+      "node_id": "inline-sdd-protocol",
+      "role": "developer",
+      "session_source": "worker",
+      "topology": "dual-visible"
+    },
+    {
+      "limitations": [],
+      "mode": "visible",
+      "node_id": "integration-review",
+      "role": "developer",
+      "session_source": "integration-reviewer",
+      "topology": "dual-visible"
+    },
+    {
+      "limitations": [],
+      "mode": "visible",
+      "node_id": "prd-guide-methodology",
+      "role": "developer",
+      "session_source": "worker",
+      "topology": "dual-visible"
+    },
+    {
+      "limitations": [],
+      "mode": "visible",
+      "node_id": "remove-dead-upgrade",
+      "role": "developer",
+      "session_source": "worker",
+      "topology": "dual-visible"
+    },
+    {
+      "limitations": [],
+      "mode": "visible",
+      "node_id": "review-methodology",
+      "role": "developer",
+      "session_source": "worker",
+      "topology": "dual-visible"
+    },
+    {
+      "limitations": [],
+      "mode": "visible",
+      "node_id": "skill-subdir-install",
+      "role": "developer",
+      "session_source": "worker",
+      "topology": "dual-visible"
+    },
+    {
+      "limitations": [],
+      "mode": "visible",
+      "node_id": "supervisor-registry",
+      "role": "developer",
+      "session_source": "worker",
+      "topology": "dual-visible"
+    },
+    {
+      "limitations": [],
+      "mode": "visible",
+      "node_id": "worker-push-delivery",
+      "role": "developer",
+      "session_source": "worker",
+      "topology": "dual-visible"
+    }
+  ]
+}

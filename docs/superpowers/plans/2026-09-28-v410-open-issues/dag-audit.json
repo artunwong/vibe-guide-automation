@@ -1,0 +1,16 @@
+{
+  "node_count": 9,
+  "node_ids": [
+    "delivery-gate-rereport",
+    "remove-dead-upgrade",
+    "inline-sdd-protocol",
+    "skill-subdir-install",
+    "review-methodology",
+    "prd-guide-methodology",
+    "supervisor-registry",
+    "worker-push-delivery",
+    "integration-review"
+  ],
+  "plan_revision": "1",
+  "status": "reviewed"
+}

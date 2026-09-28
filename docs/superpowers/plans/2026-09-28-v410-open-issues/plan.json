@@ -1,0 +1,812 @@
+{
+  "agentsmd_acceptance_refs": [],
+  "amendment_path": "",
+  "authorization_required": true,
+  "authorization_status": "",
+  "automatic_recovery_actions": [],
+  "business_write_gate": "",
+  "canonical_base_selection": "",
+  "canonical_base_sha": "",
+  "compatibility_scope": {},
+  "complexity_band": "complex",
+  "confirmation_evidence": "",
+  "dag_path": "",
+  "decisions": [
+    {
+      "field": "scope.issues",
+      "id": "decision-04deef0b1cede179",
+      "impact": "决定讨论问题数与授权范围",
+      "options": [
+        "只做第一批 #88 #80 #93 #92",
+        "6 个全做"
+      ],
+      "question": "本轮 PRD 覆盖哪些 issue",
+      "recommendation": "只做第一批 #88 #80 #93 #92",
+      "revision": 1,
+      "selected": "6 个全做",
+      "status": "approved"
+    },
+    {
+      "field": "skills.delivery_channel",
+      "id": "decision-913997120750e0b0",
+      "impact": "决定 #92/#94 工作量与跨宿主一致性；用户认定复制进不入 git 的 .vibe/ 不违反 AGENTS.md §7",
+      "options": [
+        "沿用现成做法：vibe 只登记，宿主各自安装、按名字调用",
+        "新建通道：vibe 按锁定 SHA 拉取并复制进项目 .vibe/proposals/skills/<名>/，协议按路径引用"
+      ],
+      "question": "外部方法论 skill 如何送到 agent 手里",
+      "recommendation": "沿用现成做法：vibe 只登记，宿主各自安装、按名字调用",
+      "revision": 1,
+      "selected": "新建通道：vibe 按锁定 SHA 拉取并复制进项目 .vibe/proposals/skills/<名>/，协议按路径引用",
+      "status": "approved"
+    },
+    {
+      "field": "prd_guide.methodology_refs",
+      "id": "decision-88853afa38efd088",
+      "impact": "决定按需安装清单与协议引用表",
+      "options": [
+        "9 个：opportunity-solution-tree, north-star-metric, metrics-dashboard, prioritize-features, prioritization-frameworks, job-stories, customer-journey-map(可选), strategy-red-team, pre-mortem",
+        "整包 66 个"
+      ],
+      "question": "#94 prd-guide §2 引用哪些 pm-skills 方法论",
+      "recommendation": "9 个：opportunity-solution-tree, north-star-metric, metrics-dashboard, prioritize-features, prioritization-frameworks, job-stories, customer-journey-map(可选), strategy-red-team, pre-mortem",
+      "revision": 1,
+      "selected": "9 个：opportunity-solution-tree, north-star-metric, metrics-dashboard, prioritize-features, prioritization-frameworks, job-stories, customer-journey-map(可选), strategy-red-team, pre-mortem",
+      "status": "approved"
+    },
+    {
+      "field": "visible_sdd.protocol_delivery",
+      "id": "decision-be0936cf55ab8caa",
+      "impact": "worker 在独立 worktree 中是否一定读得到协议",
+      "options": [
+        "派发时把协议全文放进 worker 指令，原标识仅作协议版本号",
+        "物化进 .vibe/ 并改为项目内路径，新旧标识双接受"
+      ],
+      "question": "#93 visible-sdd 协议如何送达 worker",
+      "recommendation": "派发时把协议全文放进 worker 指令，原标识仅作协议版本号",
+      "revision": 1,
+      "selected": "派发时把协议全文放进 worker 指令，原标识仅作协议版本号",
+      "status": "approved"
+    },
+    {
+      "field": "review.methodology_delivery",
+      "id": "decision-81b69614790da5fe",
+      "impact": "是否新增 AGENTS.md 分发块；方法论在 worktree 中是否一定可达",
+      "options": [
+        "装 code-review/intended-vs-implemented/shipping-artifacts；硬规则中文写进 worker 协议随派发送达；完整 skill 可参考；不加第 5 个 AGENTS.md 块",
+        "按 issue 原方案新增 Review Methodology AGENTS.md 分发块"
+      ],
+      "question": "#92 装哪些 skill、审查方法怎么送到 worker",
+      "recommendation": "装 code-review/intended-vs-implemented/shipping-artifacts；硬规则中文写进 worker 协议随派发送达；完整 skill 可参考；不加第 5 个 AGENTS.md 块",
+      "revision": 1,
+      "selected": "装 code-review/intended-vs-implemented/shipping-artifacts；硬规则中文写进 worker 协议随派发送达；完整 skill 可参考；不加第 5 个 AGENTS.md 块",
+      "status": "approved"
+    },
+    {
+      "field": "supervisor.shape.claude_code",
+      "id": "decision-2745d0e98e2aefd1",
+      "impact": "决定唤醒方式与上下文控制方式",
+      "options": [
+        "专职监工会话，每处理完即清空自己（地址不变）",
+        "专职监工会话，到阈值换接班会话",
+        "每轮全新会话"
+      ],
+      "question": "#91 监工形态",
+      "recommendation": "专职监工会话，每处理完即清空自己（地址不变）",
+      "revision": 1,
+      "selected": "专职监工会话，每处理完即清空自己（地址不变）",
+      "status": "approved"
+    },
+    {
+      "field": "supervisor.shape.codex",
+      "id": "decision-dd875d36b2f2bdf3",
+      "impact": "是否改用户 Codex 全局配置；每次唤醒成本。用户补充完整换班方案：每次心跳先跑本地检查脚本给出 没事/有活/该换班 三选一；没事只回一字约 2 轮结束；该换班判据为本会话上下文约 6 万 token（脚本读自身会话记录）；换班时新开会话+简短交接（进度在磁盘），新会话自建心跳、置顶、改标题，删旧心跳，旧会话归档自己，历史留在归档可翻；完工主动叫醒",
+      "options": [
+        "监工换班：超上限开接班会话、更新磁盘登记地址、归档自己",
+        "调低 Codex 全局自动压缩阈值"
+      ],
+      "question": "#91 Codex 上如何控制监工上下文",
+      "recommendation": "监工换班：超上限开接班会话、更新磁盘登记地址、归档自己",
+      "revision": 1,
+      "selected": "监工换班：超上限开接班会话、更新磁盘登记地址、归档自己",
+      "status": "approved"
+    }
+  ],
+  "deploy": false,
+  "evidence_priority": [
+    "current_user",
+    "approved_prd",
+    "authorization",
+    "issue_contract",
+    "implementation"
+  ],
+  "exploration_report": "",
+  "force_upgrade_flags": [],
+  "implementation_plan_path": ".vibe/plans/v410-open-issues/planning-brief.md",
+  "integration_acceptance_contract": {},
+  "integration_contract": {
+    "agentsmd_acceptance_refs": [
+      "AGENTS.md"
+    ],
+    "compatibility_scope": [
+      "delivery-gate-rereport",
+      "remove-dead-upgrade",
+      "inline-sdd-protocol",
+      "skill-subdir-install",
+      "review-methodology",
+      "prd-guide-methodology",
+      "supervisor-registry",
+      "worker-push-delivery"
+    ],
+    "integration_acceptance_contract": {
+      "full_diff_reviewed": "verified_fact: 全量 diff 已由独立 reviewer 只读审阅",
+      "p0_p2_cleared": "verified_fact: 整合 review 报告 P0/P1/P2 清零",
+      "prd_spec_matched": "verified_fact: 交付与 PRD/Spec 合同一致"
+    },
+    "iteration_context": {
+      "kind": "iteration",
+      "plan_id": "v410-open-issues",
+      "request_digest": "68e30cd6f2b4a2fbfcdbbca433cdd9c7f99b7c0943cdb71cfcada669f4fcfa2f"
+    },
+    "unverified_or_excluded": [
+      "deploy",
+      "release",
+      "production_write",
+      "credentials",
+      "external_communication"
+    ]
+  },
+  "issues_path": "",
+  "iteration_context": {},
+  "new_issue_proposed": "",
+  "new_release_gate": "",
+  "node_ids": [
+    "delivery-gate-rereport",
+    "remove-dead-upgrade",
+    "inline-sdd-protocol",
+    "skill-subdir-install",
+    "review-methodology",
+    "prd-guide-methodology",
+    "supervisor-registry",
+    "worker-push-delivery",
+    "integration-review"
+  ],
+  "nodes": [
+    {
+      "allowlist": [],
+      "automatic_recovery_actions": [],
+      "binding_status": "",
+      "branch_policy": "",
+      "contract": {
+        "acceptance_example": "生产引擎 fixture：第一次上报缺 delivery_evidence → 节点非 blocked_unknown、事件含 acceptance_rejected；同会话补齐重报 → 节点进入交付后续流程；缺 task identity → 仍 blocked_unknown",
+        "adapter_id": "claude-code",
+        "branch": "node/delivery-gate-rereport-b924c382",
+        "error_behavior": "判不清类别时按 fail-closed 处理，不得把未知当成功",
+        "files": [
+          "vibe_guide/monitor.py",
+          "vibe_guide/evidence.py",
+          "tests/test_issue_88_delivery_gate.py"
+        ],
+        "input": "vibeguide_monitor 引擎下 developer 的 delivered/complete 事件，delivery_evidence 缺失或缺 completion_marker/delivery_path/thread_status",
+        "output": "worker 上报格式类缺失记 acceptance_rejected 纯审计、保留 handle 与 binding，可同会话重报；身份、worktree/branch、cursor 等绑定证据类缺失保持 blocked_unknown；补生产引擎排序测试",
+        "project_id": "vibeguide",
+        "reviewer_worker": "reviewer",
+        "worker": "worker",
+        "worker_profile": {
+          "allowlist": [
+            "vibe_guide/monitor.py",
+            "vibe_guide/evidence.py",
+            "tests/test_issue_88_delivery_gate.py"
+          ],
+          "branch": "node/delivery-gate-rereport-b924c382",
+          "fallbacks": [],
+          "model": "default",
+          "reasoning": "normal",
+          "selection_basis": {
+            "availability_evidence": "configured",
+            "complexity_band": "standard",
+            "issue_complexity_ref": "delivery-gate-rereport",
+            "risk_tags": []
+          },
+          "worker": "worker",
+          "worktree": ".worktrees/delivery-gate-rereport-b924c382",
+          "writer": "worker"
+        },
+        "worktree": ".worktrees/delivery-gate-rereport-b924c382"
+      },
+      "delivery_evidence": "",
+      "depends_on": [],
+      "id": "delivery-gate-rereport",
+      "integration_after": [],
+      "mode": "",
+      "owned_paths": [],
+      "parallel_group": "wave-1",
+      "provider": "",
+      "read_paths": [],
+      "reviewer": "",
+      "risk_tags": [],
+      "status": "planned",
+      "title": "#88 生产引擎交付证据门纳入可重报通道",
+      "worktree": "",
+      "worktree_strategy": "",
+      "writer": ""
+    },
+    {
+      "allowlist": [],
+      "automatic_recovery_actions": [],
+      "binding_status": "",
+      "branch_policy": "",
+      "contract": {
+        "acceptance_example": "grep upgrade_project 全仓为零；vibe upgrade --json 输出与删除前一致；全量测试绿",
+        "adapter_id": "claude-code",
+        "branch": "node/remove-dead-upgrade-84af0b0a",
+        "error_behavior": "若发现任何可达调用方则停止删除并报告",
+        "files": [
+          "vibe_guide/cli.py",
+          "vibe_guide/upgrade.py"
+        ],
+        "input": "cli.py 中 install/upgrade 分发块之后不可达的 upgrade 分支与 upgrade.py shim",
+        "output": "死分支、import 与 upgrade.py 删除；vibe upgrade 行为不变",
+        "project_id": "vibeguide",
+        "reviewer_worker": "reviewer",
+        "worker": "worker",
+        "worker_profile": {
+          "allowlist": [
+            "vibe_guide/cli.py",
+            "vibe_guide/upgrade.py"
+          ],
+          "branch": "node/remove-dead-upgrade-84af0b0a",
+          "fallbacks": [],
+          "model": "default",
+          "reasoning": "normal",
+          "selection_basis": {
+            "availability_evidence": "configured",
+            "complexity_band": "standard",
+            "issue_complexity_ref": "remove-dead-upgrade",
+            "risk_tags": []
+          },
+          "worker": "worker",
+          "worktree": ".worktrees/remove-dead-upgrade-84af0b0a",
+          "writer": "worker"
+        },
+        "worktree": ".worktrees/remove-dead-upgrade-84af0b0a"
+      },
+      "delivery_evidence": "",
+      "depends_on": [],
+      "id": "remove-dead-upgrade",
+      "integration_after": [],
+      "mode": "",
+      "owned_paths": [],
+      "parallel_group": "wave-1",
+      "provider": "",
+      "read_paths": [],
+      "reviewer": "",
+      "risk_tags": [],
+      "status": "planned",
+      "title": "#80 删除不可达的 upgrade_project 分支与 upgrade.py",
+      "worktree": "",
+      "worktree_strategy": "",
+      "writer": ""
+    },
+    {
+      "allowlist": [],
+      "automatic_recovery_actions": [],
+      "binding_status": "",
+      "branch_policy": "",
+      "contract": {
+        "acceptance_example": "临时消费项目中生成 visible-sdd create 请求 → request.prompt 包含协议 §1 标题与 §5 protocol 规则原文；在途 run 的 protocol 比对不变",
+        "adapter_id": "claude-code",
+        "branch": "node/inline-sdd-protocol-aa7da36c",
+        "error_behavior": "随包协议读取失败时派发前 fail-closed，不创建会话",
+        "files": [
+          "vibe_guide/runners/provider_action.py",
+          "tests/test_issue_93_protocol_delivery.py",
+          "tests/test_visible_sdd_contract.py",
+          "README.md",
+          "README.en.md"
+        ],
+        "input": "visible-sdd developer 的 create 派发",
+        "output": "create 请求 prompt 含随包协议全文；VISIBLE_SDD_PROTOCOL_REF 逐字不变仅作版本号；契约测试在非 vibeguide 的临时项目中断言 prompt 含协议正文",
+        "project_id": "vibeguide",
+        "reviewer_worker": "reviewer",
+        "worker": "worker",
+        "worker_profile": {
+          "allowlist": [
+            "vibe_guide/runners/provider_action.py",
+            "tests/test_issue_93_protocol_delivery.py",
+            "tests/test_visible_sdd_contract.py",
+            "README.md",
+            "README.en.md"
+          ],
+          "branch": "node/inline-sdd-protocol-aa7da36c",
+          "fallbacks": [],
+          "model": "default",
+          "reasoning": "normal",
+          "selection_basis": {
+            "availability_evidence": "configured",
+            "complexity_band": "standard",
+            "issue_complexity_ref": "inline-sdd-protocol",
+            "risk_tags": []
+          },
+          "worker": "worker",
+          "worktree": ".worktrees/inline-sdd-protocol-aa7da36c",
+          "writer": "worker"
+        },
+        "worktree": ".worktrees/inline-sdd-protocol-aa7da36c"
+      },
+      "delivery_evidence": "",
+      "depends_on": [],
+      "id": "inline-sdd-protocol",
+      "integration_after": [],
+      "mode": "",
+      "owned_paths": [],
+      "parallel_group": "wave-1",
+      "provider": "",
+      "read_paths": [],
+      "reviewer": "",
+      "risk_tags": [],
+      "status": "planned",
+      "title": "#93 派发时把 visible-sdd 协议全文放进 worker 指令",
+      "worktree": "",
+      "worktree_strategy": "",
+      "writer": ""
+    },
+    {
+      "allowlist": [],
+      "automatic_recovery_actions": [],
+      "binding_status": "",
+      "branch_policy": "",
+      "contract": {
+        "acceptance_example": "对无根 SKILL.md 的本地 fixture 仓库 + 合法 subdir → installed 且 scan valid；subdir=../x → pending 无落盘；不带 subdir 的既有安装测试逐字通过；同仓两个 subdir → 两条记录",
+        "adapter_id": "claude-code",
+        "branch": "node/skill-subdir-install-10858321",
+        "error_behavior": "subdir 含 ..、绝对路径、首尾 /、非法字符或符号链接 → pending，不落盘不写记录；网络失败 → pending；已存在同名不覆盖",
+        "files": [
+          "vibe_guide/skills.py",
+          "vibe_guide/cli.py",
+          "vibe_guide/scanner.py",
+          "tests/test_skills.py",
+          "tests/test_skill_install_cli.py",
+          "tests/test_scanner.py",
+          "README.md",
+          "README.en.md"
+        ],
+        "input": "GitHub 源、完整 commit SHA、可选 subdir、skill 名",
+        "output": "新 CLI 子命令（需 --confirm）按 SHA 拉取、subdir 归档、校验根 SKILL.md、物化到 .vibe/proposals/skills/<名>/、写 .vibe/config.json 记录（含 subdir）；scan 解析并校验 subdir；README 说明",
+        "project_id": "vibeguide",
+        "reviewer_worker": "reviewer",
+        "worker": "worker",
+        "worker_profile": {
+          "allowlist": [
+            "vibe_guide/skills.py",
+            "vibe_guide/cli.py",
+            "vibe_guide/scanner.py",
+            "tests/test_skills.py",
+            "tests/test_skill_install_cli.py",
+            "tests/test_scanner.py",
+            "README.md",
+            "README.en.md"
+          ],
+          "branch": "node/skill-subdir-install-10858321",
+          "fallbacks": [],
+          "model": "default",
+          "reasoning": "normal",
+          "selection_basis": {
+            "availability_evidence": "configured",
+            "complexity_band": "standard",
+            "issue_complexity_ref": "skill-subdir-install",
+            "risk_tags": []
+          },
+          "worker": "worker",
+          "worktree": ".worktrees/skill-subdir-install-10858321",
+          "writer": "worker"
+        },
+        "worktree": ".worktrees/skill-subdir-install-10858321"
+      },
+      "delivery_evidence": "",
+      "depends_on": [],
+      "id": "skill-subdir-install",
+      "integration_after": [],
+      "mode": "",
+      "owned_paths": [],
+      "parallel_group": "wave-1",
+      "provider": "",
+      "read_paths": [],
+      "reviewer": "",
+      "risk_tags": [],
+      "status": "planned",
+      "title": "#92 阶段 0：skill 安装命令（subdir）+ 物化进项目 + config 登记",
+      "worktree": "",
+      "worktree_strategy": "",
+      "writer": ""
+    },
+    {
+      "allowlist": [],
+      "automatic_recovery_actions": [],
+      "binding_status": "",
+      "branch_policy": "",
+      "contract": {
+        "acceptance_example": "测试锚定协议中映射表 Refutation 行与“未完成反驳不得计入 P0–P2”那一行；VISIBLE_SDD_PROTOCOL_REF 相关测试全部不变通过",
+        "adapter_id": "claude-code",
+        "branch": "node/review-methodology-9c61adcd",
+        "error_behavior": "不改 protocol 标识、不改 §5 交付字段",
+        "files": [
+          "vibe_guide/protocols/visible-sdd-worker.md",
+          "tests/test_visible_sdd_methodology.py"
+        ],
+        "input": "visible-sdd-worker.md §1.2 与 pm-ai-shipping code-review/intended-vs-implemented 方法论（只读参考，不复制原文）",
+        "output": "协议含：约定→可行执行→反驳后才成 finding；节点合同即 intent；未反驳不计 P0–P2；未知落 blocked_unknown；fan-out 上限一层；严重度映射表；完整 skill 以项目主目录 .vibe/proposals/skills/<名>/SKILL.md 作可参考、读不到时按硬规则继续",
+        "project_id": "vibeguide",
+        "reviewer_worker": "reviewer",
+        "worker": "worker",
+        "worker_profile": {
+          "allowlist": [
+            "vibe_guide/protocols/visible-sdd-worker.md",
+            "tests/test_visible_sdd_methodology.py"
+          ],
+          "branch": "node/review-methodology-9c61adcd",
+          "fallbacks": [],
+          "model": "default",
+          "reasoning": "normal",
+          "selection_basis": {
+            "availability_evidence": "configured",
+            "complexity_band": "standard",
+            "issue_complexity_ref": "review-methodology",
+            "risk_tags": []
+          },
+          "worker": "worker",
+          "worktree": ".worktrees/review-methodology-9c61adcd",
+          "writer": "worker"
+        },
+        "worktree": ".worktrees/review-methodology-9c61adcd"
+      },
+      "delivery_evidence": "",
+      "depends_on": [],
+      "id": "review-methodology",
+      "integration_after": [
+        "inline-sdd-protocol",
+        "skill-subdir-install"
+      ],
+      "mode": "",
+      "owned_paths": [],
+      "parallel_group": "wave-1",
+      "provider": "",
+      "read_paths": [],
+      "reviewer": "",
+      "risk_tags": [],
+      "status": "planned",
+      "title": "#92 阶段 2：visible-sdd worker 协议加入中文审查方法与严重度映射",
+      "worktree": "",
+      "worktree_strategy": "",
+      "writer": ""
+    },
+    {
+      "allowlist": [],
+      "automatic_recovery_actions": [],
+      "binding_status": "",
+      "branch_policy": "",
+      "contract": {
+        "acceptance_example": "测试锚定引用表中 north-star-metric 行与“不得改变来源标记与停等门”那一行；既有 prd-guide 协议测试全绿",
+        "adapter_id": "claude-code",
+        "branch": "node/prd-guide-methodology-47757b92",
+        "error_behavior": "不改 §5 字段形状，不改变 test_prd_guide_protocol 既有断言",
+        "files": [
+          "vibe_guide/protocols/prd-guide.md",
+          "tests/test_prd_guide_protocol.py"
+        ],
+        "input": "prd-guide.md §2 五话题与决策收口",
+        "output": "§2 引用表列出 9 个 skill 的项目路径（customer-journey-map 标可选）及安装命令；使用规则：可参考不强制、未装则提示安装后继续、$ARGUMENTS 从对话读主题、中文输出、不执行另存 markdown、来源标记与 needs_confirmation 门不变",
+        "project_id": "vibeguide",
+        "reviewer_worker": "reviewer",
+        "worker": "worker",
+        "worker_profile": {
+          "allowlist": [
+            "vibe_guide/protocols/prd-guide.md",
+            "tests/test_prd_guide_protocol.py"
+          ],
+          "branch": "node/prd-guide-methodology-47757b92",
+          "fallbacks": [],
+          "model": "default",
+          "reasoning": "normal",
+          "selection_basis": {
+            "availability_evidence": "configured",
+            "complexity_band": "standard",
+            "issue_complexity_ref": "prd-guide-methodology",
+            "risk_tags": []
+          },
+          "worker": "worker",
+          "worktree": ".worktrees/prd-guide-methodology-47757b92",
+          "writer": "worker"
+        },
+        "worktree": ".worktrees/prd-guide-methodology-47757b92"
+      },
+      "delivery_evidence": "",
+      "depends_on": [],
+      "id": "prd-guide-methodology",
+      "integration_after": [
+        "skill-subdir-install"
+      ],
+      "mode": "",
+      "owned_paths": [],
+      "parallel_group": "wave-1",
+      "provider": "",
+      "read_paths": [],
+      "reviewer": "",
+      "risk_tags": [],
+      "status": "planned",
+      "title": "#94 prd-guide §2 方法论引用补丁",
+      "worktree": "",
+      "worktree_strategy": "",
+      "writer": ""
+    },
+    {
+      "allowlist": [],
+      "automatic_recovery_actions": [],
+      "binding_status": "",
+      "branch_policy": "",
+      "contract": {
+        "acceptance_example": "fixture 会话记录 token 用量 70k → rotate；30k 且无 pending、worker 活跃 → idle；有 pending create → work；记录缺失 → unknown；登记 A 后换班登记 B → 查询得 B 且历史含 A",
+        "adapter_id": "claude-code",
+        "branch": "node/supervisor-registry-29a1307f",
+        "error_behavior": "会话记录读不到或解析失败时预检返回 unknown（不得当作 idle），监工按 work 处理；未登记时查询返回 unknown 而非空成功；登记内容不含凭据",
+        "files": [
+          "vibe_guide/supervisor.py",
+          "vibe_guide/cli.py",
+          "vibe_guide/state.py",
+          "vibe_guide/protocols/prd-guide.md",
+          "tests/test_supervisor_registry.py",
+          "README.md"
+        ],
+        "input": "run、当前监工会话身份（provider、会话 id、host）与该会话的本地会话记录",
+        "output": "① 本地预检命令：只读磁盘，输出三选一 idle（worker 在干活且无新请求）/ work（有待服务请求或 worker 已完工）/ rotate（本会话上下文超过约 6 万 token，读自身会话记录得出；阈值可配）；② CLI 登记/查询 run 的当前监工地址（落 .vibe/runs/<run>/，原子写，换班保留历史）；③ prd-guide §6 写监工纪律：每次心跳第一步只跑预检，idle 只回一字结束，work 按原流程并只从磁盘读状态，rotate 执行换班——新开会话写简短交接（进度在磁盘）、新会话登记自身地址、自建心跳、置顶、改标题，删除旧心跳，旧会话归档自己；Claude Code 以清空自己代替换班；心跳降级为兜底且不得删除（换班时是移交不是删除）",
+        "project_id": "vibeguide",
+        "reviewer_worker": "reviewer",
+        "worker": "worker",
+        "worker_profile": {
+          "allowlist": [
+            "vibe_guide/supervisor.py",
+            "vibe_guide/cli.py",
+            "vibe_guide/state.py",
+            "vibe_guide/protocols/prd-guide.md",
+            "tests/test_supervisor_registry.py",
+            "README.md"
+          ],
+          "branch": "node/supervisor-registry-29a1307f",
+          "fallbacks": [],
+          "model": "default",
+          "reasoning": "normal",
+          "selection_basis": {
+            "availability_evidence": "configured",
+            "complexity_band": "standard",
+            "issue_complexity_ref": "supervisor-registry",
+            "risk_tags": []
+          },
+          "worker": "worker",
+          "worktree": ".worktrees/supervisor-registry-29a1307f",
+          "writer": "worker"
+        },
+        "worktree": ".worktrees/supervisor-registry-29a1307f"
+      },
+      "delivery_evidence": "",
+      "depends_on": [],
+      "id": "supervisor-registry",
+      "integration_after": [],
+      "mode": "",
+      "owned_paths": [],
+      "parallel_group": "wave-1",
+      "provider": "",
+      "read_paths": [],
+      "reviewer": "",
+      "risk_tags": [],
+      "status": "planned",
+      "title": "#91 监工本地预检、地址登记与换班",
+      "worktree": "",
+      "worktree_strategy": "",
+      "writer": ""
+    },
+    {
+      "allowlist": [],
+      "automatic_recovery_actions": [],
+      "binding_status": "",
+      "branch_policy": "",
+      "contract": {
+        "acceptance_example": "worker 自报缺 completion_marker → 命令非零退出且不落盘；合法自报后 resume 一次即消费；同 payload 重复自报不产生第二个事件；在 Claude Code 上实测一次 worker→监工唤醒（结果登记为实测或未验证）",
+        "adapter_id": "claude-code",
+        "branch": "node/worker-push-delivery-1fe50cc2",
+        "error_behavior": "自报格式错误当场报错不落盘；查不到监工地址时仍落盘并依赖心跳兜底；重复自报幂等",
+        "files": [
+          "vibe_guide/runners/provider_action.py",
+          "vibe_guide/adapters/task_provider.py",
+          "vibe_guide/cli.py",
+          "vibe_guide/protocols/visible-sdd-worker.md",
+          "tests/test_worker_push_delivery.py"
+        ],
+        "input": "worker 完工时的交付 payload",
+        "output": "CLI 子命令供 worker 自报交付：当场按现有交付门做格式校验并把错误返回给 worker，合法则落盘供监工下一次 resume 消费（幂等）；派发指令追加完工步骤：先自报落盘→查询监工地址→发固定格式唤醒信号；监工侧校验门位置不变、不信任信号内容；无推送能力时退化为纯拉取",
+        "project_id": "vibeguide",
+        "reviewer_worker": "reviewer",
+        "worker": "worker",
+        "worker_profile": {
+          "allowlist": [
+            "vibe_guide/runners/provider_action.py",
+            "vibe_guide/adapters/task_provider.py",
+            "vibe_guide/cli.py",
+            "vibe_guide/protocols/visible-sdd-worker.md",
+            "tests/test_worker_push_delivery.py"
+          ],
+          "branch": "node/worker-push-delivery-1fe50cc2",
+          "fallbacks": [],
+          "model": "default",
+          "reasoning": "normal",
+          "selection_basis": {
+            "availability_evidence": "configured",
+            "complexity_band": "standard",
+            "issue_complexity_ref": "worker-push-delivery",
+            "risk_tags": []
+          },
+          "worker": "worker",
+          "worktree": ".worktrees/worker-push-delivery-1fe50cc2",
+          "writer": "worker"
+        },
+        "worktree": ".worktrees/worker-push-delivery-1fe50cc2"
+      },
+      "delivery_evidence": "",
+      "depends_on": [],
+      "id": "worker-push-delivery",
+      "integration_after": [
+        "supervisor-registry",
+        "inline-sdd-protocol",
+        "delivery-gate-rereport"
+      ],
+      "mode": "",
+      "owned_paths": [],
+      "parallel_group": "wave-1",
+      "provider": "",
+      "read_paths": [],
+      "reviewer": "",
+      "risk_tags": [],
+      "status": "planned",
+      "title": "#91 worker 完工自报交付并唤醒监工",
+      "worktree": "",
+      "worktree_strategy": "",
+      "writer": ""
+    },
+    {
+      "allowlist": [],
+      "automatic_recovery_actions": [],
+      "binding_status": "",
+      "branch_policy": "",
+      "contract": {
+        "acceptance_example": "all required evidence is present and P0/P1/P2 clearance is zero",
+        "adapter_id": "claude-code",
+        "agentsmd_acceptance_refs": [
+          "AGENTS.md"
+        ],
+        "allowlist": [],
+        "compatibility_scope": [
+          "delivery-gate-rereport",
+          "remove-dead-upgrade",
+          "inline-sdd-protocol",
+          "skill-subdir-install",
+          "review-methodology",
+          "prd-guide-methodology",
+          "supervisor-registry",
+          "worker-push-delivery"
+        ],
+        "digest": "7825599ac1af8095ec43fb13dfda937fd5b32d0335cd7f859ea81e0da1625265",
+        "digest_inputs": {
+          "plan_revision": 1,
+          "prd_ref": ".vibe/plans/v410-open-issues/prd.md",
+          "spec_ref": ".vibe/plans/v410-open-issues/prd.md"
+        },
+        "error_behavior": "malformed claims are rejected as acceptance_rejected for re-report on the same session; contract drift, unknown, out-of-scope changes, or uncleared findings block acceptance",
+        "files": [
+          "vibe_guide/monitor.py",
+          "vibe_guide/evidence.py",
+          "tests/test_issue_88_delivery_gate.py",
+          "vibe_guide/cli.py",
+          "vibe_guide/upgrade.py",
+          "vibe_guide/runners/provider_action.py",
+          "tests/test_issue_93_protocol_delivery.py",
+          "tests/test_visible_sdd_contract.py",
+          "README.md",
+          "README.en.md",
+          "vibe_guide/skills.py",
+          "vibe_guide/scanner.py",
+          "tests/test_skills.py",
+          "tests/test_skill_install_cli.py",
+          "tests/test_scanner.py",
+          "vibe_guide/protocols/visible-sdd-worker.md",
+          "tests/test_visible_sdd_methodology.py",
+          "vibe_guide/protocols/prd-guide.md",
+          "tests/test_prd_guide_protocol.py",
+          "vibe_guide/supervisor.py",
+          "vibe_guide/state.py",
+          "tests/test_supervisor_registry.py",
+          "vibe_guide/adapters/task_provider.py",
+          "tests/test_worker_push_delivery.py"
+        ],
+        "input": "all business deliveries, review/rework evidence, and aggregate diff",
+        "integration_acceptance_contract": {
+          "full_diff_reviewed": "verified_fact: 全量 diff 已由独立 reviewer 只读审阅",
+          "p0_p2_cleared": "verified_fact: 整合 review 报告 P0/P1/P2 清零",
+          "prd_spec_matched": "verified_fact: 交付与 PRD/Spec 合同一致"
+        },
+        "iteration_context": {
+          "kind": "iteration",
+          "plan_id": "v410-open-issues",
+          "request_digest": "68e30cd6f2b4a2fbfcdbbca433cdd9c7f99b7c0943cdb71cfcada669f4fcfa2f"
+        },
+        "output": "integration review report: a claim with exactly the keys findings, iteration_compatibility, test_runtime_delivery, out_of_scope (severity p0-p4, only resolved clears; p3/p4 are observations that never count into the clearance)",
+        "project_id": "vibeguide",
+        "read_only": true,
+        "reviewer": "integration-reviewer",
+        "reviewer_worker": "integration-reviewer",
+        "risk_tags": [
+          "integration",
+          "read-only"
+        ],
+        "unverified_or_excluded": [
+          "deploy",
+          "release",
+          "production_write",
+          "credentials",
+          "external_communication"
+        ],
+        "worker": "integration-reviewer",
+        "writer": "integration-reviewer"
+      },
+      "delivery_evidence": "",
+      "depends_on": [
+        "delivery-gate-rereport",
+        "remove-dead-upgrade",
+        "inline-sdd-protocol",
+        "skill-subdir-install",
+        "review-methodology",
+        "prd-guide-methodology",
+        "supervisor-registry",
+        "worker-push-delivery"
+      ],
+      "id": "integration-review",
+      "integration_after": [],
+      "mode": "",
+      "owned_paths": [],
+      "parallel_group": "integration",
+      "provider": "",
+      "read_paths": [],
+      "reviewer": "integration-reviewer",
+      "risk_tags": [
+        "integration",
+        "read-only"
+      ],
+      "status": "planned",
+      "title": "Final integration review",
+      "worktree": "",
+      "worktree_strategy": "",
+      "writer": ""
+    }
+  ],
+  "old_authorization_reuse": false,
+  "plan_confirmation": "",
+  "plan_id": "v410-open-issues",
+  "planning_goals": [],
+  "prd_path": ".vibe/plans/v410-open-issues/prd.md",
+  "preflight_block_reasons": [],
+  "preflight_report": "",
+  "preflight_status": "",
+  "provider_probe_result": "",
+  "provider_probe_thread_id": "",
+  "ready_nodes": [],
+  "release_gate": "",
+  "revision2_confirmation_evidence": "",
+  "route_result": {},
+  "routing_result": {},
+  "scope_change_reason": "",
+  "spec_path": ".vibe/plans/v410-open-issues/prd.md",
+  "status": "confirmed_pending_authorization",
+  "target_contract": {},
+  "target_contract_digest": "",
+  "unverified_or_excluded": [],
+  "version": 1,
+  "worktree_policy": ""
+}

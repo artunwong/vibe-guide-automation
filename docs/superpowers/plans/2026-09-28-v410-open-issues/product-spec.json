@@ -1,0 +1,231 @@
+{
+  "title": "V4.10 开放 issue 集中修复：交付门可重报、协议送达、方法论接入、事件驱动监工",
+  "objective": "一次性关闭 GitHub 上 6 个开放 issue（#80 #88 #91 #92 #93 #94）：worker 格式错误可同会话重报；visible-sdd 协议在任何平台都送达 worker；vibe 能按需安装 monorepo 子目录 skill 并送进项目；reviewer 与 PRD 引导获得外部方法论；监工改为事件唤醒、上下文可控，停止空转烧 token；清理不可达的旧升级代码。",
+  "decisions": [
+    {
+      "question": "本轮 PRD 覆盖哪些 issue",
+      "options": ["只做第一批 #88 #80 #93 #92", "6 个全做"],
+      "impact": "决定讨论问题数与授权范围",
+      "recommendation": "只做第一批 #88 #80 #93 #92",
+      "status": "approved",
+      "selected": "6 个全做",
+      "field": "scope.issues"
+    },
+    {
+      "question": "外部方法论 skill 如何送到 agent 手里",
+      "options": ["沿用现成做法：vibe 只登记，宿主各自安装、按名字调用", "新建通道：vibe 按锁定 SHA 拉取并复制进项目 .vibe/proposals/skills/<名>/，协议按路径引用"],
+      "impact": "决定 #92/#94 工作量与跨宿主一致性；用户认定复制进不入 git 的 .vibe/ 不违反 AGENTS.md §7",
+      "recommendation": "沿用现成做法：vibe 只登记，宿主各自安装、按名字调用",
+      "status": "approved",
+      "selected": "新建通道：vibe 按锁定 SHA 拉取并复制进项目 .vibe/proposals/skills/<名>/，协议按路径引用",
+      "field": "skills.delivery_channel"
+    },
+    {
+      "question": "#94 prd-guide §2 引用哪些 pm-skills 方法论",
+      "options": ["9 个：opportunity-solution-tree, north-star-metric, metrics-dashboard, prioritize-features, prioritization-frameworks, job-stories, customer-journey-map(可选), strategy-red-team, pre-mortem", "整包 66 个"],
+      "impact": "决定按需安装清单与协议引用表",
+      "recommendation": "9 个：opportunity-solution-tree, north-star-metric, metrics-dashboard, prioritize-features, prioritization-frameworks, job-stories, customer-journey-map(可选), strategy-red-team, pre-mortem",
+      "status": "approved",
+      "selected": "9 个：opportunity-solution-tree, north-star-metric, metrics-dashboard, prioritize-features, prioritization-frameworks, job-stories, customer-journey-map(可选), strategy-red-team, pre-mortem",
+      "field": "prd_guide.methodology_refs"
+    },
+    {
+      "question": "#93 visible-sdd 协议如何送达 worker",
+      "options": ["派发时把协议全文放进 worker 指令，原标识仅作协议版本号", "物化进 .vibe/ 并改为项目内路径，新旧标识双接受"],
+      "impact": "worker 在独立 worktree 中是否一定读得到协议",
+      "recommendation": "派发时把协议全文放进 worker 指令，原标识仅作协议版本号",
+      "status": "approved",
+      "selected": "派发时把协议全文放进 worker 指令，原标识仅作协议版本号",
+      "field": "visible_sdd.protocol_delivery"
+    },
+    {
+      "question": "#92 装哪些 skill、审查方法怎么送到 worker",
+      "options": ["装 code-review/intended-vs-implemented/shipping-artifacts；硬规则中文写进 worker 协议随派发送达；完整 skill 可参考；不加第 5 个 AGENTS.md 块", "按 issue 原方案新增 Review Methodology AGENTS.md 分发块"],
+      "impact": "是否新增 AGENTS.md 分发块；方法论在 worktree 中是否一定可达",
+      "recommendation": "装 code-review/intended-vs-implemented/shipping-artifacts；硬规则中文写进 worker 协议随派发送达；完整 skill 可参考；不加第 5 个 AGENTS.md 块",
+      "status": "approved",
+      "selected": "装 code-review/intended-vs-implemented/shipping-artifacts；硬规则中文写进 worker 协议随派发送达；完整 skill 可参考；不加第 5 个 AGENTS.md 块",
+      "field": "review.methodology_delivery"
+    },
+    {
+      "question": "#91 监工形态",
+      "options": ["专职监工会话，每处理完即清空自己（地址不变）", "专职监工会话，到阈值换接班会话", "每轮全新会话"],
+      "impact": "决定唤醒方式与上下文控制方式",
+      "recommendation": "专职监工会话，每处理完即清空自己（地址不变）",
+      "status": "approved",
+      "selected": "专职监工会话，每处理完即清空自己（地址不变）",
+      "field": "supervisor.shape.claude_code"
+    },
+    {
+      "question": "#91 Codex 上如何控制监工上下文",
+      "options": ["监工换班：超上限开接班会话、更新磁盘登记地址、归档自己", "调低 Codex 全局自动压缩阈值"],
+      "impact": "是否改用户 Codex 全局配置；每次唤醒成本。用户补充完整换班方案：每次心跳先跑本地检查脚本给出 没事/有活/该换班 三选一；没事只回一字约 2 轮结束；该换班判据为本会话上下文约 6 万 token（脚本读自身会话记录）；换班时新开会话+简短交接（进度在磁盘），新会话自建心跳、置顶、改标题，删旧心跳，旧会话归档自己，历史留在归档可翻；完工主动叫醒",
+      "recommendation": "监工换班：超上限开接班会话、更新磁盘登记地址、归档自己",
+      "status": "approved",
+      "selected": "监工换班：超上限开接班会话、更新磁盘登记地址、归档自己",
+      "field": "supervisor.shape.codex"
+    }
+  ],
+  "prd": {
+    "problem": [
+      {"value": "worker 漏写 delivery_evidence 时节点直接砖化为 blocked_unknown，而同类的漏写 in_session_review 已可同会话重报（#88）", "source": "system_inferred"},
+      {"value": "visible-sdd worker 的派发指令只有一句话，协议路径只在本仓库可解析，消费项目的 worker 读不到协议，交付门却只比对路径字符串（#93）", "source": "system_inferred"},
+      {"value": "vibe install 只装 vibe 自身；能装 skill 的函数无任何命令调用，且只支持仓库根即 skill，monorepo 子目录装不了（#92）", "source": "system_inferred"},
+      {"value": "reviewer 只有 P0–P3 分级定义，没有如何发现缺陷的方法，clearance 的 0 没有含义（#92）", "source": "user_confirmed"},
+      {"value": "PRD 引导协议不引用任何产品方法论（#94）", "source": "user_confirmed"},
+      {"value": "监工靠 10 分钟心跳轮询推进，完工到验收最多闲置一个周期；监工在同一会话里无限累积上下文，amulet-mvp-v3 实测一次空转心跳约 4 次模型调用、每次读入 17–20 万 token（#91）", "source": "user_confirmed"},
+      {"value": "cli.py 的 upgrade_project 分支与 upgrade.py 物理不可达（#80）", "source": "system_inferred"}
+    ],
+    "user_scenarios": [
+      {"value": "worker 交付格式写错，收到可恢复拒绝后在同一会话修正重报，节点不被隔离", "source": "system_inferred"},
+      {"value": "在任意消费项目、任意平台派发 visible-sdd worker，worker 指令里就带着协议全文", "source": "user_confirmed"},
+      {"value": "产品经理需要某个方法论时，agent 按需执行一条安装命令，skill 按锁定版本落到项目 .vibe/proposals/skills/<名>/ 并被协议引用", "source": "user_confirmed"},
+      {"value": "PRD 讨论到成功标准时，agent 可参考 north-star-metric 等方法论，用中文推进，不另存 markdown，来源标记与停等门不变", "source": "user_confirmed"},
+      {"value": "每次心跳先跑本地预检（没事/有活/该换班）；没事约 2 轮结束；worker 完工后先落盘交付、再发消息叫醒监工；上下文约 6 万时 Codex 监工换班（新会话自建心跳、置顶、改标题，旧心跳删除、旧会话归档），Claude Code 监工清空自己", "source": "user_confirmed"}
+    ],
+    "success_criteria": [
+      {"value": "生产引擎下缺 delivery_evidence 字段 → acceptance_rejected 且保留 handle，修正重报后 accepted；身份/篡改类仍 fail-closed", "source": "system_inferred"},
+      {"value": "干净消费项目中派发的 visible-sdd create 请求 prompt 含协议正文；现有 protocol 标识逐字不变，在途 run 不受影响", "source": "user_confirmed"},
+      {"value": "vibe 新增 skill 安装命令：支持 subdir、拒绝 ../绝对路径/符号链接、写入 .vibe/config.json 记录（含 subdir）并物化到 .vibe/proposals/skills/<名>/；scan 报 valid；不带 subdir 的旧行为不变", "source": "user_confirmed"},
+      {"value": "在本仓库实际装上 pm-ai-shipping 的 3 个 skill（锁 8607e3b），scan 均 valid", "source": "user_confirmed"},
+      {"value": "visible-sdd-worker 协议含中文审查硬规则与严重度映射表；prd-guide §2 含 9 个方法论引用及使用规则", "source": "user_confirmed"},
+      {"value": "监工地址登记在磁盘并可查询；worker 派发指令含完工自报与唤醒步骤；vibe 提供精简轮次输出；心跳文字降级为兜底；Claude Code 上实测一次 worker→监工唤醒", "source": "user_confirmed"},
+      {"value": "upgrade_project 死分支与 upgrade.py 删除后全量测试绿", "source": "system_inferred"}
+    ],
+    "non_goals": [
+      {"value": "不 fork/vendor pm-skills 文本进 vibe_guide/；不装其余 57 个产品方法论", "source": "user_confirmed"},
+      {"value": "shipping-artifacts 接验收侧（#92 阶段 3）延后", "source": "user_confirmed"},
+      {"value": "不改用户 Codex 全局配置；不新增 AGENTS.md 分发块", "source": "user_confirmed"},
+      {"value": "Codex 上推送唤醒与换班的真实延迟/成本本轮不在本机验证，由用户在另一台机器实证", "source": "user_confirmed"},
+      {"value": "不含 deploy、发布、打 tag", "source": "system_inferred"}
+    ],
+    "code_evidence": [
+      {"value": "交付门排序：vibe_guide/monitor.py _apply_event 的 evaluate_delivery_evidence 早于 visible-sdd validate-first", "source": "system_inferred"},
+      {"value": "派发 prompt：vibe_guide/runners/provider_action.py create_request prompt 仅一句话", "source": "system_inferred"},
+      {"value": "skill 安装：vibe_guide/skills.py install_skill/_materialize_commit，无 CLI 调用方", "source": "system_inferred"},
+      {"value": "死代码：vibe_guide/cli.py upgrade 分支与 vibe_guide/upgrade.py", "source": "system_inferred"}
+    ]
+  },
+  "nodes": [
+    {
+      "id": "delivery-gate-rereport",
+      "title": "#88 生产引擎交付证据门纳入可重报通道",
+      "depends_on": [],
+      "integration_after": [],
+      "parallel_group": "wave-1",
+      "contract": {
+        "input": "vibeguide_monitor 引擎下 developer 的 delivered/complete 事件，delivery_evidence 缺失或缺 completion_marker/delivery_path/thread_status",
+        "output": "worker 上报格式类缺失记 acceptance_rejected 纯审计、保留 handle 与 binding，可同会话重报；身份、worktree/branch、cursor 等绑定证据类缺失保持 blocked_unknown；补生产引擎排序测试",
+        "error_behavior": "判不清类别时按 fail-closed 处理，不得把未知当成功",
+        "acceptance_example": "生产引擎 fixture：第一次上报缺 delivery_evidence → 节点非 blocked_unknown、事件含 acceptance_rejected；同会话补齐重报 → 节点进入交付后续流程；缺 task identity → 仍 blocked_unknown"
+      },
+      "files": ["vibe_guide/monitor.py", "vibe_guide/evidence.py", "tests/test_issue_88_delivery_gate.py"]
+    },
+    {
+      "id": "remove-dead-upgrade",
+      "title": "#80 删除不可达的 upgrade_project 分支与 upgrade.py",
+      "depends_on": [],
+      "integration_after": [],
+      "parallel_group": "wave-1",
+      "contract": {
+        "input": "cli.py 中 install/upgrade 分发块之后不可达的 upgrade 分支与 upgrade.py shim",
+        "output": "死分支、import 与 upgrade.py 删除；vibe upgrade 行为不变",
+        "error_behavior": "若发现任何可达调用方则停止删除并报告",
+        "acceptance_example": "grep upgrade_project 全仓为零；vibe upgrade --json 输出与删除前一致；全量测试绿"
+      },
+      "files": ["vibe_guide/cli.py", "vibe_guide/upgrade.py"]
+    },
+    {
+      "id": "inline-sdd-protocol",
+      "title": "#93 派发时把 visible-sdd 协议全文放进 worker 指令",
+      "depends_on": [],
+      "integration_after": [],
+      "parallel_group": "wave-1",
+      "contract": {
+        "input": "visible-sdd developer 的 create 派发",
+        "output": "create 请求 prompt 含随包协议全文；VISIBLE_SDD_PROTOCOL_REF 逐字不变仅作版本号；契约测试在非 vibeguide 的临时项目中断言 prompt 含协议正文",
+        "error_behavior": "随包协议读取失败时派发前 fail-closed，不创建会话",
+        "acceptance_example": "临时消费项目中生成 visible-sdd create 请求 → request.prompt 包含协议 §1 标题与 §5 protocol 规则原文；在途 run 的 protocol 比对不变"
+      },
+      "files": ["vibe_guide/runners/provider_action.py", "tests/test_issue_93_protocol_delivery.py", "tests/test_visible_sdd_contract.py", "README.md", "README.en.md"]
+    },
+    {
+      "id": "skill-subdir-install",
+      "title": "#92 阶段 0：skill 安装命令（subdir）+ 物化进项目 + config 登记",
+      "depends_on": [],
+      "integration_after": [],
+      "parallel_group": "wave-1",
+      "contract": {
+        "input": "GitHub 源、完整 commit SHA、可选 subdir、skill 名",
+        "output": "新 CLI 子命令（需 --confirm）按 SHA 拉取、subdir 归档、校验根 SKILL.md、物化到 .vibe/proposals/skills/<名>/、写 .vibe/config.json 记录（含 subdir）；scan 解析并校验 subdir；README 说明",
+        "error_behavior": "subdir 含 ..、绝对路径、首尾 /、非法字符或符号链接 → pending，不落盘不写记录；网络失败 → pending；已存在同名不覆盖",
+        "acceptance_example": "对无根 SKILL.md 的本地 fixture 仓库 + 合法 subdir → installed 且 scan valid；subdir=../x → pending 无落盘；不带 subdir 的既有安装测试逐字通过；同仓两个 subdir → 两条记录"
+      },
+      "files": ["vibe_guide/skills.py", "vibe_guide/cli.py", "vibe_guide/scanner.py", "tests/test_skills.py", "tests/test_skill_install_cli.py", "tests/test_scanner.py", "README.md", "README.en.md"]
+    },
+    {
+      "id": "review-methodology",
+      "title": "#92 阶段 2：visible-sdd worker 协议加入中文审查方法与严重度映射",
+      "depends_on": [],
+      "integration_after": ["inline-sdd-protocol", "skill-subdir-install"],
+      "parallel_group": "wave-1",
+      "contract": {
+        "input": "visible-sdd-worker.md §1.2 与 pm-ai-shipping code-review/intended-vs-implemented 方法论（只读参考，不复制原文）",
+        "output": "协议含：约定→可行执行→反驳后才成 finding；节点合同即 intent；未反驳不计 P0–P2；未知落 blocked_unknown；fan-out 上限一层；严重度映射表；完整 skill 以项目主目录 .vibe/proposals/skills/<名>/SKILL.md 作可参考、读不到时按硬规则继续",
+        "error_behavior": "不改 protocol 标识、不改 §5 交付字段",
+        "acceptance_example": "测试锚定协议中映射表 Refutation 行与“未完成反驳不得计入 P0–P2”那一行；VISIBLE_SDD_PROTOCOL_REF 相关测试全部不变通过"
+      },
+      "files": ["vibe_guide/protocols/visible-sdd-worker.md", "tests/test_visible_sdd_methodology.py"]
+    },
+    {
+      "id": "prd-guide-methodology",
+      "title": "#94 prd-guide §2 方法论引用补丁",
+      "depends_on": [],
+      "integration_after": ["skill-subdir-install"],
+      "parallel_group": "wave-1",
+      "contract": {
+        "input": "prd-guide.md §2 五话题与决策收口",
+        "output": "§2 引用表列出 9 个 skill 的项目路径（customer-journey-map 标可选）及安装命令；使用规则：可参考不强制、未装则提示安装后继续、$ARGUMENTS 从对话读主题、中文输出、不执行另存 markdown、来源标记与 needs_confirmation 门不变",
+        "error_behavior": "不改 §5 字段形状，不改变 test_prd_guide_protocol 既有断言",
+        "acceptance_example": "测试锚定引用表中 north-star-metric 行与“不得改变来源标记与停等门”那一行；既有 prd-guide 协议测试全绿"
+      },
+      "files": ["vibe_guide/protocols/prd-guide.md", "tests/test_prd_guide_protocol.py"]
+    },
+    {
+      "id": "supervisor-registry",
+      "title": "#91 监工本地预检、地址登记与换班",
+      "depends_on": [],
+      "integration_after": [],
+      "parallel_group": "wave-1",
+      "contract": {
+        "input": "run、当前监工会话身份（provider、会话 id、host）与该会话的本地会话记录",
+        "output": "① 本地预检命令：只读磁盘，输出三选一 idle（worker 在干活且无新请求）/ work（有待服务请求或 worker 已完工）/ rotate（本会话上下文超过约 6 万 token，读自身会话记录得出；阈值可配）；② CLI 登记/查询 run 的当前监工地址（落 .vibe/runs/<run>/，原子写，换班保留历史）；③ prd-guide §6 写监工纪律：每次心跳第一步只跑预检，idle 只回一字结束，work 按原流程并只从磁盘读状态，rotate 执行换班——新开会话写简短交接（进度在磁盘）、新会话登记自身地址、自建心跳、置顶、改标题，删除旧心跳，旧会话归档自己；Claude Code 以清空自己代替换班；心跳降级为兜底且不得删除（换班时是移交不是删除）",
+        "error_behavior": "会话记录读不到或解析失败时预检返回 unknown（不得当作 idle），监工按 work 处理；未登记时查询返回 unknown 而非空成功；登记内容不含凭据",
+        "acceptance_example": "fixture 会话记录 token 用量 70k → rotate；30k 且无 pending、worker 活跃 → idle；有 pending create → work；记录缺失 → unknown；登记 A 后换班登记 B → 查询得 B 且历史含 A"
+      },
+      "files": ["vibe_guide/supervisor.py", "vibe_guide/cli.py", "vibe_guide/state.py", "vibe_guide/protocols/prd-guide.md", "tests/test_supervisor_registry.py", "README.md"]
+    },
+    {
+      "id": "worker-push-delivery",
+      "title": "#91 worker 完工自报交付并唤醒监工",
+      "depends_on": [],
+      "integration_after": ["supervisor-registry", "inline-sdd-protocol", "delivery-gate-rereport"],
+      "parallel_group": "wave-1",
+      "contract": {
+        "input": "worker 完工时的交付 payload",
+        "output": "CLI 子命令供 worker 自报交付：当场按现有交付门做格式校验并把错误返回给 worker，合法则落盘供监工下一次 resume 消费（幂等）；派发指令追加完工步骤：先自报落盘→查询监工地址→发固定格式唤醒信号；监工侧校验门位置不变、不信任信号内容；无推送能力时退化为纯拉取",
+        "error_behavior": "自报格式错误当场报错不落盘；查不到监工地址时仍落盘并依赖心跳兜底；重复自报幂等",
+        "acceptance_example": "worker 自报缺 completion_marker → 命令非零退出且不落盘；合法自报后 resume 一次即消费；同 payload 重复自报不产生第二个事件；在 Claude Code 上实测一次 worker→监工唤醒（结果登记为实测或未验证）"
+      },
+      "files": ["vibe_guide/runners/provider_action.py", "vibe_guide/adapters/task_provider.py", "vibe_guide/cli.py", "vibe_guide/protocols/visible-sdd-worker.md", "tests/test_worker_push_delivery.py"]
+    }
+  ],
+  "goals": [
+    {"id": "g-88", "user_scenario": "worker 格式错误同会话重报", "code_evidence": "vibe_guide/monitor.py _apply_event", "spec_ref": "success_criteria[0]", "issue_ref": "#88", "dag_nodes": ["delivery-gate-rereport"], "runtime_acceptance": "生产引擎 fixture 重报收口"},
+    {"id": "g-80", "user_scenario": "清理死代码", "code_evidence": "vibe_guide/cli.py upgrade 分支", "spec_ref": "success_criteria[6]", "issue_ref": "#80", "dag_nodes": ["remove-dead-upgrade"], "runtime_acceptance": "vibe upgrade 输出不变"},
+    {"id": "g-93", "user_scenario": "协议送达任意平台 worker", "code_evidence": "vibe_guide/runners/provider_action.py create prompt", "spec_ref": "success_criteria[1]", "issue_ref": "#93", "dag_nodes": ["inline-sdd-protocol"], "runtime_acceptance": "临时消费项目派发请求含协议正文"},
+    {"id": "g-92", "user_scenario": "按需安装子目录 skill 并接入 reviewer", "code_evidence": "vibe_guide/skills.py install_skill", "spec_ref": "success_criteria[2..4]", "issue_ref": "#92", "dag_nodes": ["skill-subdir-install", "review-methodology"], "runtime_acceptance": "本仓库实际安装 3 个 pm-ai-shipping skill 且 scan valid"},
+    {"id": "g-94", "user_scenario": "PRD 讨论可参考方法论", "code_evidence": "vibe_guide/protocols/prd-guide.md §2", "spec_ref": "success_criteria[4]", "issue_ref": "#94", "dag_nodes": ["prd-guide-methodology"], "runtime_acceptance": "协议引用表可解析到已安装 skill 路径"},
+    {"id": "g-91", "user_scenario": "事件唤醒、上下文可控的监工", "code_evidence": "vibe_guide/supervisor.py; vibe_guide/runners/provider_action.py", "spec_ref": "success_criteria[5]", "issue_ref": "#91", "dag_nodes": ["supervisor-registry", "worker-push-delivery"], "runtime_acceptance": "Claude Code 实测一次唤醒；Codex 由用户异机实证"}
+  ]
+}
