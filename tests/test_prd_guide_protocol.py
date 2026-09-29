@@ -486,6 +486,32 @@ class PublishSectionTests(unittest.TestCase):
         self.assertIn('("steps", "domains", "uncertainty", "failure_cost", "toolchain")',
                       inspect.getsource(session_entry.draft_s1))
 
+    def test_spec_location_depends_on_whether_the_id_has_a_draft(self):
+        """§5.1: a spec kept under a new id's directory makes its publish fail."""
+        import inspect
+        from vibe_guide import cli
+        # The code fact: an existing non-draft directory is never published over.
+        source = inspect.getsource(cli._publish_plan)
+        self.assertIn("if replaceable_draft_extras(destination) is None:\n            raise FileExistsError(\"plan already exists\")", source)
+        section = self.section("### 5.1 ", "\n### 5.2 ")
+        same = self.line(section, "同一个 `plan_id` 发布")
+        self.assertIn("`.vibe/plans/<plan_id>/product-spec.json`", same)
+        self.assertIn("随草案一起保留", same)
+        fresh = self.line(section, "没有草案的新 `plan_id`")
+        self.assertIn("放在 `.vibe/plans` 之外", fresh)
+        self.assertIn("建议项目根目录的 `product-spec.json`", fresh)
+        self.assertIn("§5.3 改远端 Git 开关、恢复分支③", fresh)
+        why = self.line(section, "不要事先建")
+        self.assertIn("`.vibe/plans/<新编号>/`", why)
+        self.assertIn("vibe 只替换草案目录", why)
+        self.assertIn("`plan already exists`", why)
+        self.assertNotIn("也可放项目内任意位置", self.protocol())
+        publish = self.section("### 5.3 ", "\n## 6. ")
+        change = self.line(publish, "`vibe authorize` 改不了")
+        self.assertIn("把产品 spec 复制到 `.vibe/plans` 之外（见 §5.1）", change)
+        recover = self.line(publish, "draft could not be restored")
+        self.assertIn("从挪开的草案里取回产品 spec 放到 `.vibe/plans` 之外（见 §5.1）", recover)
+
     def test_remote_git_switch_is_chosen_before_publishing(self):
         from vibe_guide.cli import _parser
         from vibe_guide.node_spec import PRODUCT_SPEC_FIELDS

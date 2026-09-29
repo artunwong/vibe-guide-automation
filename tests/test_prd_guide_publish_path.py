@@ -16,6 +16,7 @@ exercised:
 """
 import json
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -68,6 +69,20 @@ class _Project(unittest.TestCase):
 
     def plan_dir(self, plan_id):
         return self.root / ".vibe" / "plans" / plan_id
+
+    def new_id_spec_location(self, plan_id):
+        """Where §5.1 says to keep the spec when publishing under an id with no draft."""
+        from vibe_guide.protocols import load_protocol
+        text = load_protocol("prd-guide")
+        start = text.index("### 5.1 ")
+        section = text[start:text.index("\n### 5.2 ", start)]
+        lines = [line for line in section.splitlines() if "没有草案的新 `plan_id`" in line]
+        self.assertEqual(len(lines), 1, "§5.1 names no spec location for a new plan_id: {}".format(lines))
+        locations = re.findall(r"`([^`]*product-spec\.json)`", lines[0])
+        self.assertEqual(len(locations), 1, lines[0])
+        location = locations[0].replace("<plan_id>", plan_id)
+        self.assertNotRegex(location, "[<>]", "unresolved placeholder in §5.1's location")
+        return location
 
     def card(self, plan_id):
         return json.loads((self.plan_dir(plan_id) / "authorization-card.json").read_text(encoding="utf-8"))
@@ -141,6 +156,45 @@ class ProtocolPathTests(_Project):
         self.assertEqual(again.payload.get("score"), 19, again.payload)
         self.assertEqual(self.card(plan_id + "-r2")["remote_git_actions"], "allow")
         self.assertEqual(self.card(plan_id)["remote_git_actions"], "deny")
+
+    def test_switch_change_republish_follows_the_spec_location_literally(self):
+        """§5.1 + §5.3, to the letter: the new id has no draft to publish over.
+
+        The spec kept in the draft's directory for the first publish is copied
+        to where §5.1 says a new id's spec goes, the switch is changed there,
+        and the republish must succeed.
+        """
+        plan_id = self.cli("plan", "--request", SHORT_REQUEST, "--s1", SESSION_S1).payload["plan_id"]
+        self.prepare_session()
+        spec = self.write_spec(".vibe/plans/{}/product-spec.json".format(plan_id), "deny")
+        first = self.cli("plan", "--request", SHORT_REQUEST, "--plan-id", plan_id, "--from-prd", spec)
+        self.assert_complex_publish(first, plan_id, "deny")
+        new_id = plan_id + "-r2"
+        location = self.new_id_spec_location(new_id)
+        target = self.root / location
+        target.parent.mkdir(parents=True, exist_ok=True)
+        data = json.loads((self.root / spec).read_text(encoding="utf-8"))
+        data["remote_git_actions"] = "allow"
+        target.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        again = self.cli(
+            "plan", "--request", SHORT_REQUEST, "--plan-id", new_id, "--s1", first.payload["s1"],
+            "--from-prd", location,
+        )
+        self.assert_complex_publish(again, new_id, "allow")
+        self.assertEqual(self.card(plan_id)["remote_git_actions"], "deny")
+
+    def test_a_spec_kept_under_a_new_ids_directory_blocks_its_publish(self):
+        """The code fact §5.1 rests on: only a draft directory is published over."""
+        plan_id = self.cli("plan", "--request", SHORT_REQUEST, "--s1", SESSION_S1).payload["plan_id"]
+        self.prepare_session()
+        new_id = plan_id + "-r2"
+        spec = self.write_spec(".vibe/plans/{}/product-spec.json".format(new_id), "allow")
+        result = self.cli(
+            "plan", "--request", SHORT_REQUEST, "--plan-id", new_id, "--s1", SESSION_S1, "--from-prd", spec,
+        )
+        self.assertEqual(result.payload.get("status"), "blocked", result.payload)
+        self.assertIn("plan already exists", result.payload.get("reason", ""))
+        self.assertEqual([p.name for p in self.plan_dir(new_id).iterdir()], ["product-spec.json"])
 
     def test_a_product_spec_is_never_dropped_behind_status_ok(self):
         """No draft to inherit from and a low-scoring text: refuse, loudly."""
@@ -349,13 +403,15 @@ class DraftReplacementBoundaryTests(_Project):
         parked = list((self.root / ".vibe" / "plans").glob(".{}.draft.*/draft".format(plan_id)))
         self.assertEqual(len(parked), 1, parked)
         # Take the spec back; --s1 from the parked plan.json, in the named order.
-        taken = self.root / "product-spec.json"
+        location = self.new_id_spec_location(plan_id + "-r2")
+        taken = self.root / location
+        taken.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(str(parked[0] / "product-spec.json"), str(taken))
         dimensions = json.loads((parked[0] / "plan.json").read_text(encoding="utf-8"))["route_result"]["dimensions"]
         s1 = ",".join(str(dimensions[name]) for name in ("steps", "domains", "uncertainty", "failure_cost", "toolchain"))
         again = self.cli(
             "plan", "--request", SHORT_REQUEST, "--plan-id", plan_id + "-r2", "--s1", s1,
-            "--from-prd", "product-spec.json",
+            "--from-prd", location,
         )
         self.assertEqual(again.payload.get("status"), "ok", again.payload)
         self.assertEqual(again.payload.get("score"), 19, again.payload)

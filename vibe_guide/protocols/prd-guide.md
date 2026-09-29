@@ -84,7 +84,13 @@ vibe plan --request "<产品经理的原话>" --json
 
 ### 5.1 产品 spec 的形状
 
-写成一个 JSON 文件（建议 `.vibe/plans/<plan_id>/product-spec.json`，也可放项目内任意位置）。结构以 `vibe_guide.node_spec.PRODUCT_SPEC_FIELDS` 为准，测试会断言本节与代码一致：
+写成一个 JSON 文件，放在哪里取决于发布用的 `plan_id` 有没有草案：
+
+- 用 §1 草案的同一个 `plan_id` 发布：建议放在 `.vibe/plans/<plan_id>/product-spec.json`，发布时随草案一起保留。
+- 用没有草案的新 `plan_id` 发布（§5.3 改远端 Git 开关、恢复分支③）：放在 `.vibe/plans` 之外，建议项目根目录的 `product-spec.json`。
+- 不要事先建 `.vibe/plans/<新编号>/`：vibe 只替换草案目录，新编号下已经存在的目录会让发布报 `plan already exists`。
+
+结构以 `vibe_guide.node_spec.PRODUCT_SPEC_FIELDS` 为准，测试会断言本节与代码一致：
 
 ```json
 {
@@ -136,11 +142,11 @@ vibe plan --request "<产品经理的原话>" --plan-id <plan_id> --from-prd <pr
 
 用 §1 草案的同一个 `plan_id` 发布，vibe 会替换这份草案（草案从未持有授权）；已发布或已授权的计划不会被覆盖，仍报 `plan already exists`。发布同样不必传 `--s1`，vibe 沿用草案记下的评分，只升不降。
 
-替换中途被打断（如 Ctrl-C）或 reason 含 `draft could not be restored` 时，先确认草案有没有被挪开：位置以 reason 里给出的路径为准，没给路径就找 `.vibe/plans/.<plan_id>.draft.*/draft`（命中多个时别猜：把每个目录的修改时间和其中 `plan.json` 的状态列给产品经理，请他选）。①找不到：草案没被挪动，直接按原命令重新发布；②找到了且 `.vibe/plans/<plan_id>` 不存在：把它整个挪回这个位置，再按原命令重新发布；③找到了且 `.vibe/plans/<plan_id>` 已存在就不要覆盖，也不要当成本次发布成功（那里可能是别的会话的发布，有授权卡也证明不了是你的）：从挪开的草案里取回产品 spec，告诉产品经理这个编号已被占用，再换一个新的 `plan_id` 重新发布，`--s1` 照挪开草案 `plan.json` 里 `route_result.dimensions` 的 `steps,domains,uncertainty,failure_cost,toolchain` 依次填。处理完后，挪开的草案移到废纸篓，剩下的空隐藏目录可以删掉。
+替换中途被打断（如 Ctrl-C）或 reason 含 `draft could not be restored` 时，先确认草案有没有被挪开：位置以 reason 里给出的路径为准，没给路径就找 `.vibe/plans/.<plan_id>.draft.*/draft`（命中多个时别猜：把每个目录的修改时间和其中 `plan.json` 的状态列给产品经理，请他选）。①找不到：草案没被挪动，直接按原命令重新发布；②找到了且 `.vibe/plans/<plan_id>` 不存在：把它整个挪回这个位置，再按原命令重新发布；③找到了且 `.vibe/plans/<plan_id>` 已存在就不要覆盖，也不要当成本次发布成功（那里可能是别的会话的发布，有授权卡也证明不了是你的）：从挪开的草案里取回产品 spec 放到 `.vibe/plans` 之外（见 §5.1），告诉产品经理这个编号已被占用，再换一个新的 `plan_id` 重新发布，`--s1` 照挪开草案 `plan.json` 里 `route_result.dimensions` 的 `steps,domains,uncertainty,failure_cost,toolchain` 依次填。处理完后，挪开的草案移到废纸篓，剩下的空隐藏目录可以删掉。
 
 - `status: ok`：vibe 已生成 PRD、Spec、Issue、DAG 审计、授权卡、planning-brief。把 `authorization_card` 用产品语言念给产品经理：要做哪几件事、哪些同时开工、每件事一个开发任务加一个独立审查任务、发布前选定的远端 Git 开关（卡上的 `remote_git_actions`）、永远不含部署/发布/生产写入/凭据/对外通信。
 - 念卡时分开说两件事，别让 `allow` 听起来像"允许了又排除了"：`excluded_actions` 里的推送/合并是说开发任务自己永远不推送；`allowed_actions` 里的推送/合并是说产品经理允许后，这些动作进入授权范围；vibe 只在独立终审通过后校验并记录，不代为执行。选 `deny` 时 `allowed_actions` 不含任何远端 Git 动作，`excluded_actions` 照样列着推送/合并。
-- 产品经理此时想改远端 Git 开关：`vibe authorize` 改不了它。改产品 spec 的 `remote_git_actions`，用一个新的 `plan_id` 重新发布（`--plan-id <新编号> --s1 <s1>`，`<s1>` 照抄首次发布结果里的 `s1`：草案已被替换，新编号没有评分可沿用），再念新卡。
+- 产品经理此时想改远端 Git 开关：`vibe authorize` 改不了它。把产品 spec 复制到 `.vibe/plans` 之外（见 §5.1），改其中的 `remote_git_actions`，用一个新的 `plan_id` 重新发布（`--plan-id <新编号> --s1 <s1>`，`<s1>` 照抄首次发布结果里的 `s1`：草案已被替换，新编号没有评分可沿用），再念新卡。
 - `status: blocked` 且 reason 以 `product_spec_requires_complex_route` 开头：请求被评成了非复杂路径，vibe 拒绝丢掉产品 spec。用 §1 草案的 `plan_id` 发布，或按 §1 用 `--s1` 显式升级。
 - `status: blocked` 且 reason 含 `product decisions remain unresolved`：回到 §2 把决策问清楚。
 - `status: blocked` 且 reason 含 `engine_attestation_unavailable`：先做 §5.2。
