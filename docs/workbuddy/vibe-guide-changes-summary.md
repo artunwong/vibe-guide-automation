@@ -326,7 +326,8 @@ pip install --force-reinstall vibe-guide==4.9.1
 | 项 | 值 |
 |---|---|
 | 提交位置 | fork `artunwong/vibe-guide-automation`（原仓库 `halfmoon82/vibe-guide-automation` 只有 pull 权限） |
-| 分支 | `windows-workbuddy-adaptation` |
+| 分支 | `windows-workbuddy-adaptation`（2 个 commit：feat 代码 + docs 文档） |
+| 上游 PR | **#109** —— https://github.com/halfmoon82/vibe-guide-automation/pull/109 （`mergeable: clean`，+1011 / -14，11 文件） |
 | 基点 | 上游 `main` @ `252c17cb`（v4.9.1 之后的 14 个 commit，均为 macOS / PRD-guide 方向） |
 | 本次提交内容 | A/B/C/D/E 五组代码改动 + 两份说明文档（`docs/workbuddy/`） |
 | 未包含 | `_wincompat.py`（Windows 兼容层）已作为 **PR #84 合入上游**，v4.9.1 自带，不在本分支 |
