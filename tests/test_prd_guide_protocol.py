@@ -473,7 +473,10 @@ class PublishSectionTests(unittest.TestCase):
         self.assertIn("也不要当成本次发布成功", rule)
         self.assertNotIn("照 `status: ok` 往下走", rule)
         self.assertIn("从挪开的草案里取回产品 spec", rule)
-        self.assertIn("再换一个新的 `plan_id` 重新发布", rule)
+        self.assertIn("告诉产品经理这个编号已被占用", rule)
+        # One string: without --s1 a short request falls back to its text
+        # score and the republish is refused.
+        self.assertIn("再换一个新的 `plan_id` 重新发布，`--s1` 照挪开草案", rule)
         self.assertIn("`route_result.dimensions` 的 `steps,domains,uncertainty,failure_cost,toolchain` 依次填", rule)
         self.assertIn("命中多个时别猜：把每个目录的修改时间和其中 `plan.json` 的状态列给产品经理", rule)
         self.assertIn("挪开的草案移到废纸篓", rule)
