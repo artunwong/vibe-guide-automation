@@ -238,6 +238,36 @@ class DAGTests(unittest.TestCase):
         self.assertTrue(any("duplicate writer" in reason for reason in result.reasons["a"]))
         self.assertTrue(any("allowlist" in reason for reason in result.reasons["c"]))
 
+    def test_audit_blocks_overlapping_write_scope_without_hard_dependency(self):
+        nodes = [
+            audited_node("a", group="first", allowlist=["vibe_guide/cli.py"]),
+            audited_node("b", group="second", allowlist=["vibe_guide/cli.py"]),
+        ]
+        result = audit_dag(Plan("p1", 1, "prd.md", ["a", "b"], "authorized", nodes=nodes))
+        self.assertEqual(result.status, "blocked_dag")
+        self.assertTrue(any("overlapping write scope" in reason and "vibe_guide/cli.py" in reason for reason in result.reasons["a"]))
+        self.assertTrue(any("depends_on" in reason or "split" in reason for reason in result.reasons["b"]))
+
+    def test_audit_allows_overlapping_write_scope_when_hard_dependency_serializes_nodes(self):
+        nodes = [
+            audited_node("a", group="first", status="delivered", allowlist=["README.md"]),
+            audited_node("b", depends=["a"], group="second", allowlist=["README.md"]),
+        ]
+        result = audit_dag(Plan("p1", 1, "prd.md", ["a", "b"], "authorized", nodes=nodes))
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(result.ready_nodes, ["b"])
+
+    def test_audit_reports_conflicting_nodes_paths_and_split_direction(self):
+        nodes = [
+            audited_node("a", group="first", allowlist=["README.md", "docs/a.md"]),
+            audited_node("b", group="second", allowlist=["README.md", "docs/b.md"]),
+        ]
+        result = audit_dag(Plan("p1", 1, "prd.md", ["a", "b"], "authorized", nodes=nodes))
+        reason = " ".join(result.reasons["a"])
+        self.assertIn("a and b", reason)
+        self.assertIn("README.md", reason)
+        self.assertTrue("depends_on" in reason and "split" in reason)
+
     def test_render_includes_audit_contract_and_identity_evidence(self):
         n1 = audited_node("n1", status="accepted")
         n2 = audited_node("n2", depends=["n1"])
