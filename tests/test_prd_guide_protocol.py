@@ -453,6 +453,36 @@ class PublishSectionTests(unittest.TestCase):
         self.assertIn("替换这份草案", rule)
         self.assertIn("已发布或已授权的计划不会被覆盖", rule)
 
+    def test_publish_step_tells_how_to_recover_a_parked_draft(self):
+        """Where a draft is left when a swap is interrupted comes from the code."""
+        import inspect
+        from vibe_guide import cli
+        source = inspect.getsource(cli._replace_draft)
+        self.assertIn('prefix="." + destination.name + ".draft."', source)
+        self.assertIn('parked = holding / "draft"', source)
+        self.assertIn("draft could not be restored", source)
+        rule = self.line(self.section("### 5.3 ", "\n## 6. "), "draft could not be restored")
+        self.assertIn("替换中途被打断（如 Ctrl-C）", rule)
+        self.assertIn("以 reason 里给出的路径为准", rule)
+        self.assertIn("`.vibe/plans/.<plan_id>.draft.*/draft`", rule)
+        # Most interrupts land before the draft is moved; that branch first.
+        self.assertIn("①找不到：草案没被挪动，直接按原命令重新发布", rule)
+        self.assertIn("②找到了且 `.vibe/plans/<plan_id>` 不存在：把它整个挪回这个位置，再按原命令重新发布", rule)
+        self.assertIn("③找到了且 `.vibe/plans/<plan_id>` 已存在就不要覆盖", rule)
+        # A card only proves the id holds *a* publication, not this one.
+        self.assertIn("也不要当成本次发布成功", rule)
+        self.assertNotIn("照 `status: ok` 往下走", rule)
+        self.assertIn("从挪开的草案里取回产品 spec", rule)
+        self.assertIn("再换一个新的 `plan_id` 重新发布", rule)
+        self.assertIn("`route_result.dimensions` 的 `steps,domains,uncertainty,failure_cost,toolchain` 依次填", rule)
+        self.assertIn("命中多个时别猜：把每个目录的修改时间和其中 `plan.json` 的状态列给产品经理", rule)
+        self.assertIn("挪开的草案移到废纸篓", rule)
+        self.assertIn("空隐藏目录可以删掉", rule)
+        # The field order the protocol names is the order draft_s1 reads.
+        from vibe_guide import session_entry
+        self.assertIn('("steps", "domains", "uncertainty", "failure_cost", "toolchain")',
+                      inspect.getsource(session_entry.draft_s1))
+
     def test_remote_git_switch_is_chosen_before_publishing(self):
         from vibe_guide.cli import _parser
         from vibe_guide.node_spec import PRODUCT_SPEC_FIELDS
