@@ -479,6 +479,13 @@ class PublishSectionTests(unittest.TestCase):
         self.assertIn("再换一个新的 `plan_id` 重新发布，`--s1` 照挪开草案 `plan.json` 里 `route_result.dimensions`", rule)
         self.assertIn("`route_result.dimensions` 的 `steps,domains,uncertainty,failure_cost,toolchain` 依次填", rule)
         self.assertIn("命中多个时别猜：把每个目录的修改时间和其中 `plan.json` 的状态列给产品经理，请他选", rule)
+        # The swap lands before the holding dir is cleaned up, so an interrupt
+        # in between leaves a real, unauthorized publication under the old id.
+        self.assertEqual(source.rstrip().splitlines()[-1].strip(), "shutil.rmtree(str(holding), ignore_errors=True)")
+        self.assertIn("旧编号下那份计划原样留着", rule)
+        self.assertIn("不念它的卡、不对它 `vibe authorize` 或 `vibe monitor`，授权和开工只用新编号", rule)
+        self.assertIn("可能是本次被打断的发布，也可能是别的会话的", rule)
+        self.assertIn("清不清理由产品经理决定", rule)
         self.assertIn("挪开的草案移到废纸篓", rule)
         self.assertIn("空隐藏目录可以删掉", rule)
         # The field order the protocol names is the order draft_s1 reads.

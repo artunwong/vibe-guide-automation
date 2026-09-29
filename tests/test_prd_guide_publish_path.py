@@ -417,6 +417,48 @@ class DraftReplacementBoundaryTests(_Project):
         self.assertEqual(again.payload.get("score"), 19, again.payload)
         self.assertEqual(self.card(plan_id + "-r2")["remote_git_actions"], "allow")
 
+    def test_an_interrupt_after_the_swap_leaves_this_publication_under_the_old_id(self):
+        """§5.3 branch ③ also covers this publish having landed.
+
+        The swap lands before the holding directory is cleaned up; an
+        interrupt in between leaves a parked draft next to a real,
+        unauthorized publication that nothing marks as this session's.  The
+        protocol republishes under a new id and leaves the old one as it is.
+        """
+        plan_id = self.draft()
+        spec = self.write_spec(".vibe/plans/{}/product-spec.json".format(plan_id))
+        import vibe_guide.cli as cli_module
+        real_rmtree = shutil.rmtree
+
+        def interrupted_cleanup(path, *args, **kwargs):
+            if ".{}.draft.".format(plan_id) in str(path):
+                raise KeyboardInterrupt
+            return real_rmtree(path, *args, **kwargs)
+
+        with mock.patch.object(cli_module.shutil, "rmtree", side_effect=interrupted_cleanup):
+            with self.assertRaises(KeyboardInterrupt):
+                self.cli("plan", "--request", COMPLEX_REQUEST, "--plan-id", plan_id, "--from-prd", spec)
+        # Branch ③: a parked draft, and the id is taken.
+        parked = list((self.root / ".vibe" / "plans").glob(".{}.draft.*/draft".format(plan_id)))
+        self.assertEqual(len(parked), 1, parked)
+        self.assertTrue(self.plan_dir(plan_id).is_dir())
+        old_plan = (self.plan_dir(plan_id) / "plan.json").read_bytes()
+        self.assertNotEqual(json.loads(old_plan).get("status"), "draft")
+        self.assertIn("remote_git_actions", self.card(plan_id))
+        # Followed literally: new id, parked S1, old plan untouched.
+        location = self.new_id_spec_location(plan_id + "-r2")
+        taken = self.root / location
+        taken.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(parked[0] / "product-spec.json"), str(taken))
+        dimensions = json.loads((parked[0] / "plan.json").read_text(encoding="utf-8"))["route_result"]["dimensions"]
+        s1 = ",".join(str(dimensions[name]) for name in ("steps", "domains", "uncertainty", "failure_cost", "toolchain"))
+        again = self.cli(
+            "plan", "--request", COMPLEX_REQUEST, "--plan-id", plan_id + "-r2", "--s1", s1,
+            "--from-prd", location,
+        )
+        self.assertEqual(again.payload.get("status"), "ok", again.payload)
+        self.assertEqual((self.plan_dir(plan_id) / "plan.json").read_bytes(), old_plan)
+
     def test_a_publication_landing_mid_swap_is_not_overwritten(self):
         """Re-check what was actually moved aside, not what was seen before."""
         plan_id = self.draft()
