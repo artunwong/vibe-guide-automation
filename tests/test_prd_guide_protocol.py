@@ -476,9 +476,9 @@ class PublishSectionTests(unittest.TestCase):
         self.assertIn("告诉产品经理这个编号已被占用", rule)
         # One string: without --s1 a short request falls back to its text
         # score and the republish is refused.
-        self.assertIn("再换一个新的 `plan_id` 重新发布，`--s1` 照挪开草案", rule)
+        self.assertIn("再换一个新的 `plan_id` 重新发布，`--s1` 照挪开草案 `plan.json` 里 `route_result.dimensions`", rule)
         self.assertIn("`route_result.dimensions` 的 `steps,domains,uncertainty,failure_cost,toolchain` 依次填", rule)
-        self.assertIn("命中多个时别猜：把每个目录的修改时间和其中 `plan.json` 的状态列给产品经理", rule)
+        self.assertIn("命中多个时别猜：把每个目录的修改时间和其中 `plan.json` 的状态列给产品经理，请他选", rule)
         self.assertIn("挪开的草案移到废纸篓", rule)
         self.assertIn("空隐藏目录可以删掉", rule)
         # The field order the protocol names is the order draft_s1 reads.
