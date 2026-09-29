@@ -70,7 +70,7 @@
 
 用户明确授权后，一次授权覆盖当前 DAG 已列明的全部非 deploy 动作。deploy、未列明动作、扩大范围或系统权限变更必须单独授权。
 
-“显式独立任务”是通用产品的首选合同，不是当前项目的临时执行规则。受支持 Agent 应优先通过对应桌面 App 的原生任务能力创建用户可见任务。Codex App 使用 `create_thread` 创建 user-owned thread；Claude Code、Cursor、Grok、WorkBuddy、Kimi Code 和 DeepSeek Harness 由各自适配器探测等价的创建、进入、续接和状态定位能力。平台确认没有等价桥接时，可以明确降级为 background subagent，但必须披露不可见、不可直接进入和返工续接受限，不得把降级模式标成完整可见自动化。每个 Issue 固定绑定一个开发任务；每次独立 Review 固定绑定另一个 reviewer 任务。可续接时返工回到原开发任务、复审回到原 reviewer 任务；降级模式无法保证时必须提前披露。
+“显式独立任务”是通用产品的首选合同，不是当前项目的临时执行规则；它只对未进入 VibeGuide 授权 run（未绑定 plan/run/授权卡）的任务生效，已进入 vibe 授权 run 的任务按该 run DAG 节点裁定的拓扑与授权卡执行（visible-sdd、dual-visible 或显式降级），不再重复适用本条。受支持 Agent 应优先通过对应桌面 App 的原生任务能力创建用户可见任务。Codex App 使用 `create_thread` 创建 user-owned thread；Claude Code、Cursor、Grok、WorkBuddy、Kimi Code 和 DeepSeek Harness 由各自适配器探测等价的创建、进入、续接和状态定位能力。平台确认没有等价桥接时，可以明确降级为 background subagent，但必须披露不可见、不可直接进入和返工续接受限，不得把降级模式标成完整可见自动化。每个 Issue 固定绑定一个开发任务；每次独立 Review 固定绑定另一个 reviewer 任务。可续接时返工回到原开发任务、复审回到原 reviewer 任务；降级模式无法保证时必须提前披露。
 
 通用任务登记必须保存 `provider`、`mode=visible|background`、平台任务 ID（如有）、host、worktree、branch、状态/交付路径和续接 cursor/token；Codex 可见绑定具体保存 `threadId`、`hostId` 和 cursor。完整可见模式中，可见、可进入、可追溯是验收条件。无等价能力的平台可降级为 background subagent，但能力报告、授权卡和交付必须明确标识降级及限制。
 
