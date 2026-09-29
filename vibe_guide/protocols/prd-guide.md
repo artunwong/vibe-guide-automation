@@ -22,7 +22,7 @@ vibe plan --request "<产品经理的原话>" --json
 
 - `route` 为 `simple` 或 `light_plan`：直接开始做，不进入本协议。
 - `route` 为 `complex`：vibe 会生成一个 draft（`status: planned`，`execution: deferred_until_authorize`），记下 `plan_id`，进入 §2。
-- 不要传 `--s1`。分数由 vibe 从文本推导；如果产品经理明确要求按复杂流程走，用 `--s1 5,5,5,5,5` 显式升级，绝不反向降级。
+- 不要自己算 `--s1`：分数由 vibe 从文本推导并记进草案，发布时沿用草案的评分（§5.3 不必再传）；如果产品经理明确要求按复杂流程走，用 `--s1 5,5,5,5,5` 显式升级，绝不反向降级。
 
 ## 2. PRD 引导对话（只谈产品，不谈工程）
 
@@ -128,16 +128,23 @@ vibe attest --adapter <claude-code|codex|...> --facts <facts.json> --provenance 
 
 ### 5.3 发布、授权、开工
 
+发布前先问产品经理：允许还是禁止远端 Git 动作（提交、推送、开 PR、合并），把答案写进产品 spec 顶层的 `remote_git_actions`（`allow` / `deny`，缺省 `deny`）。这个开关在发布时就写进授权卡，要在发布前定。
+
 ```bash
 vibe plan --request "<产品经理的原话>" --plan-id <plan_id> --from-prd <product-spec.json> --json
 ```
 
-- `status: ok`：vibe 已生成 PRD、Spec、Issue、DAG 审计、授权卡、planning-brief。把 `authorization_card` 用产品语言念给产品经理：要做哪几件事、哪些同时开工、每件事一个开发任务加一个独立审查任务、**唯一要选的是允许还是禁止远端 Git 动作**（提交、推送、开 PR、合并）、永远不含部署/发布/生产写入/凭据/对外通信。
+用 §1 草案的同一个 `plan_id` 发布，vibe 会替换这份草案（草案从未持有授权）；已发布或已授权的计划不会被覆盖，仍报 `plan already exists`。发布同样不必传 `--s1`，vibe 沿用草案记下的评分，只升不降。
+
+- `status: ok`：vibe 已生成 PRD、Spec、Issue、DAG 审计、授权卡、planning-brief。把 `authorization_card` 用产品语言念给产品经理：要做哪几件事、哪些同时开工、每件事一个开发任务加一个独立审查任务、发布前选定的远端 Git 开关（卡上的 `remote_git_actions`）、永远不含部署/发布/生产写入/凭据/对外通信。
+- 念卡时分开说两件事，别让 `allow` 听起来像"允许了又排除了"：`excluded_actions` 里的推送/合并是说开发任务自己永远不推送；`allowed_actions` 里的推送/合并是说产品经理允许后，这些动作进入授权范围；vibe 只在独立终审通过后校验并记录，不代为执行。选 `deny` 时 `allowed_actions` 不含任何远端 Git 动作，`excluded_actions` 照样列着推送/合并。
+- 产品经理此时想改远端 Git 开关：`vibe authorize` 改不了它。改产品 spec 的 `remote_git_actions`，用一个新的 `plan_id` 重新发布（`--plan-id <新编号> --s1 <s1>`，`<s1>` 照抄首次发布结果里的 `s1`：草案已被替换，新编号没有评分可沿用），再念新卡。
+- `status: blocked` 且 reason 以 `product_spec_requires_complex_route` 开头：请求被评成了非复杂路径，vibe 拒绝丢掉产品 spec。用 §1 草案的 `plan_id` 发布，或按 §1 用 `--s1` 显式升级。
 - `status: blocked` 且 reason 含 `product decisions remain unresolved`：回到 §2 把决策问清楚。
 - `status: blocked` 且 reason 含 `engine_attestation_unavailable`：先做 §5.2。
 - `status: blocked_design` 且带 `question`：这是 PRD 检查点发现的未决产品问题，原样问产品经理。
 
-产品经理说"授权"并选定远端 Git 动作后：
+产品经理说"授权"后：
 
 ```bash
 vibe authorize --plan <plan_id> --authorize AUTHORIZE --json

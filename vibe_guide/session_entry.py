@@ -136,6 +136,62 @@ DRAFT_NEXT_STEP = (
 )
 
 
+# What materialize_session_entry writes; publishing may replace exactly these.
+DRAFT_ARTIFACTS = ("plan.json", "nodes.json", "node-spec.json")
+# Names that mean a directory has left the draft stage, whatever plan.json says.
+_NON_DRAFT_PREFIXES = ("authorization", "current-run", "plan-confirmation", "engine-attestation")
+
+
+def _read_draft_plan(directory: Path) -> Optional[Dict[str, Any]]:
+    plan_file = directory / "plan.json"
+    if directory.is_symlink() or not directory.is_dir() or plan_file.is_symlink() or not plan_file.is_file():
+        return None
+    try:
+        plan = json.loads(plan_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(plan, dict) or plan.get("status") != "draft":
+        return None
+    return plan
+
+
+def replaceable_draft_extras(directory: Path) -> Optional[list]:
+    """Files to carry over when a publish replaces a never-authorized draft.
+
+    Returns ``None`` unless ``directory`` is still exactly a session draft:
+    ``plan.json`` says ``draft``, every entry is a regular file, and nothing
+    in it belongs to publication, authorization, or a run.  Anything else the
+    agent left there (the product spec, per the protocol) is returned so the
+    caller keeps it.
+    """
+    if _read_draft_plan(directory) is None:
+        return None
+    extras = []
+    for child in sorted(directory.iterdir()):
+        if child.is_symlink() or not child.is_file():
+            return None
+        if child.name in DRAFT_ARTIFACTS:
+            continue
+        if child.name.startswith(_NON_DRAFT_PREFIXES):
+            return None
+        extras.append(child)
+    return extras
+
+
+def draft_s1(directory: Path) -> Optional[str]:
+    """The session's own S1 recorded by a draft, as an explicit ``--s1`` value."""
+    plan = _read_draft_plan(directory)
+    route = plan.get("route_result") if plan else None
+    dimensions = route.get("dimensions") if isinstance(route, dict) else None
+    if not isinstance(dimensions, dict):
+        return None
+    names = ("steps", "domains", "uncertainty", "failure_cost", "toolchain")
+    values = [dimensions.get(name) for name in names]
+    if not all(isinstance(value, int) and not isinstance(value, bool) for value in values):
+        return None
+    return ",".join(str(value) for value in values)
+
+
 def materialize_session_entry(paths: Any, entry: SessionEntry) -> Path:
     """Persist only deterministic planning inputs for a new session.
 
@@ -172,11 +228,7 @@ def materialize_session_entry(paths: Any, entry: SessionEntry) -> Path:
         # instead of letting monitor trip over the missing authorization card.
         "next_step": DRAFT_NEXT_STEP,
     }
-    artifacts = {
-        "plan.json": plan,
-        "nodes.json": entry.node_spec["nodes"],
-        "node-spec.json": entry.node_spec,
-    }
+    artifacts = dict(zip(DRAFT_ARTIFACTS, (plan, entry.node_spec["nodes"], entry.node_spec)))
     existing_plan = root / "plan.json"
     if existing_plan.is_symlink():
         raise ValueError("planning artifact path may not be a symlink")

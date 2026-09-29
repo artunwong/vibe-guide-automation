@@ -418,6 +418,101 @@ class MailboxSectionTests(unittest.TestCase):
             )
 
 
+class PublishSectionTests(unittest.TestCase):
+    """§1 and §5.3 must describe the publish path the code actually takes.
+
+    Issue #97: the protocol told agents to publish under the draft's id (which
+    failed), not to pass --s1 (which silently downgraded the plan), and to pick
+    the remote Git switch at authorization (which cannot change it).  Each
+    assertion is scoped to the line that carries the instruction.
+    """
+
+    def protocol(self):
+        from vibe_guide.protocols import load_protocol
+        return load_protocol("prd-guide")
+
+    def section(self, heading, next_heading):
+        text = self.protocol()
+        start = text.index(heading)
+        return text[start:text.index(next_heading, start)]
+
+    def line(self, section, needle):
+        lines = [line for line in section.splitlines() if needle in line]
+        self.assertEqual(len(lines), 1, "expected one line with {!r}: {}".format(needle, lines))
+        return lines[0]
+
+    def test_s1_rule_says_publish_inherits_the_draft_score(self):
+        rule = self.line(self.section("## 1. 入口判定", "\n## 2. "), "不要自己算 `--s1`")
+        self.assertIn("发布时沿用草案", rule)
+        self.assertIn("绝不反向降级", rule)
+        self.assertNotIn("不要传 `--s1`", self.protocol())
+
+    def test_publish_step_names_the_draft_replacement_and_its_limit(self):
+        section = self.section("### 5.3 ", "\n## 6. ")
+        rule = self.line(section, "同一个 `plan_id`")
+        self.assertIn("替换这份草案", rule)
+        self.assertIn("已发布或已授权的计划不会被覆盖", rule)
+
+    def test_remote_git_switch_is_chosen_before_publishing(self):
+        from vibe_guide.cli import _parser
+        from vibe_guide.node_spec import PRODUCT_SPEC_FIELDS
+        self.assertIn("remote_git_actions?", PRODUCT_SPEC_FIELDS)
+        # The code fact the prose rests on: authorize takes no such switch.
+        dests = {action.dest for action in _parser()._actions}
+        self.assertFalse({dest for dest in dests if "remote" in dest}, dests)
+        section = self.section("### 5.3 ", "\n## 6. ")
+        before_publish = section[:section.index("```bash")]
+        rule = self.line(before_publish, "`remote_git_actions`")
+        self.assertIn("发布前", rule)
+        self.assertIn("缺省 `deny`", rule)
+        change = self.line(section, "`vibe authorize` 改不了")
+        self.assertIn("新的 `plan_id` 重新发布", change)
+        # The draft is gone after the first publish, so the new id has
+        # nothing to inherit; the first publish hands its S1 back instead.
+        self.assertIn("首次发布结果里的 `s1`", change)
+        self.assertIn("--s1 <s1>", change)
+        for stale in ("唯一要选的是允许还是禁止远端 Git 动作", "选定远端 Git 动作后"):
+            self.assertNotIn(stale, self.protocol(), stale)
+
+    def test_card_reading_separates_worker_envelope_from_user_grant(self):
+        section = self.section("### 5.3 ", "\n## 6. ")
+        rule = self.line(section, "`excluded_actions`")
+        self.assertIn("`allowed_actions`", rule)
+        self.assertIn("开发任务自己永远不推送", rule)
+        self.assertIn("进入授权范围", rule)
+        self.assertIn("vibe 只在独立终审通过后校验并记录，不代为执行", rule)
+        self.assertNotIn("监工可以在独立终审通过后执行", self.protocol())
+        # The code facts behind "records, never executes": the monitor stamps
+        # remote Git actions as not performed, and the only merge gate needs
+        # merge_local/merge_remote, which the published card never carries.
+        import inspect
+        from vibe_guide import authorization, monitor
+        self.assertIn('"external_execution": "not_performed"', inspect.getsource(monitor))
+        self.assertIn('{"merge_local", "merge_remote"}', inspect.getsource(authorization.can_auto_merge))
+        # The worker envelope is fixed, so it lists push/merge under deny too.
+        from vibe_guide.authorization import _EXCLUDED_ACTIONS, _REMOTE_GIT_ACTIONS_SCOPE
+        self.assertTrue({"push", "merge"} <= set(_EXCLUDED_ACTIONS))
+        self.assertIn("`excluded_actions` 照样列着推送/合并", rule)
+        self.assertFalse({"merge_local", "merge_remote"} & set(_REMOTE_GIT_ACTIONS_SCOPE))
+        for action in _REMOTE_GIT_ACTIONS_SCOPE:
+            from vibe_guide.authorization import _ALLOWED_ACTIONS
+            self.assertNotIn(action, _ALLOWED_ACTIONS, action)
+        self.assertIn("选 `deny` 时 `allowed_actions` 不含任何远端 Git 动作", rule)
+
+    def test_protocol_lists_the_downgrade_refusal_reason_the_cli_emits(self):
+        root = Path(tempfile.mkdtemp(prefix="issue97-doc-"))
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / "spec.json").write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+        result = run_cli(
+            ["plan", "--json", "--request", "发布 V4.10 计划", "--plan-id", "p", "--from-prd", "spec.json"], root,
+        )
+        self.assertEqual(result.payload.get("status"), "blocked", result.payload)
+        code = result.payload["reason"].split(":", 1)[0]
+        row = self.line(self.section("### 5.3 ", "\n## 6. "), "`{}`".format(code))
+        self.assertIn("`status: blocked`", row)
+        self.assertIn("`--s1`", row)
+
+
 class _ProjectCase(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="v45-prd-guide-"))

@@ -42,7 +42,7 @@ from .planner import (
     score_s1,
     build_stage_handoff,
 )
-from .session_entry import build_session_entry, materialize_session_entry
+from .session_entry import build_session_entry, draft_s1, materialize_session_entry, replaceable_draft_extras
 from .node_spec import (
     complete_node_contracts,
     normalize_node_spec,
@@ -328,6 +328,43 @@ def _public_runner(
     )
 
 
+def _s1_arg(entry: Any) -> str:
+    score = entry.s1
+    return ",".join(str(value) for value in (score.steps, score.domains, score.uncertainty, score.failure_cost, score.toolchain))
+
+
+def _replace_draft(destination: Path, staging: Path) -> None:
+    """Swap a published staging directory in for a session draft.
+
+    The draft is moved aside first and judged again there: whatever landed
+    in it before the move (another publication, a run) is caught while the
+    draft can still be put back.  Files the agent kept in the draft (the
+    product spec) move along; a name the publication itself writes is a
+    collision and aborts.  Any failure restores the draft.
+    """
+    holding = Path(tempfile.mkdtemp(prefix="." + destination.name + ".draft.", dir=str(destination.parent)))
+    parked = holding / "draft"
+    os.rename(str(destination), str(parked))
+    try:
+        extras = replaceable_draft_extras(parked)
+        if extras is None:
+            raise FileExistsError("plan already exists")
+        for extra in extras:
+            target = staging / extra.name
+            if target.exists() or target.is_symlink():
+                raise FileExistsError("plan already exists: draft file {} collides with the publication".format(extra.name))
+            shutil.copy2(str(extra), str(target))
+        os.replace(str(staging), str(destination))
+    except BaseException:
+        try:
+            os.rename(str(parked), str(destination))
+        except OSError as error:
+            raise OSError("draft could not be restored; it is kept at {}".format(parked)) from error
+        shutil.rmtree(str(holding), ignore_errors=True)
+        raise
+    shutil.rmtree(str(holding), ignore_errors=True)
+
+
 def _publish_plan(
     paths: ProjectPaths, plan_id: str, source: Any
 ) -> Tuple[Plan, List[DAGNode], AuthorizationCard]:
@@ -422,8 +459,17 @@ def _publish_plan(
     if plans_root.is_symlink():
         raise ValueError("plans directory may not be a symlink")
     plans_root.mkdir(parents=True, exist_ok=True)
-    if destination.exists() or destination.is_symlink():
+    # A session draft under the same id never held an authorization, so the
+    # protocol publishes over it; anything further along is never replaced.
+    # _plan_root resolves symlinks, so look at the id's own entry: an alias
+    # must never publish over the draft it points to.
+    is_draft = False
+    if (paths.vibe / "plans" / plan_id).is_symlink():
         raise FileExistsError("plan already exists")
+    if destination.exists() or destination.is_symlink():
+        if replaceable_draft_extras(destination) is None:
+            raise FileExistsError("plan already exists")
+        is_draft = True
     staging = Path(tempfile.mkdtemp(prefix="." + plan_id + ".", dir=str(plans_root)))
     try:
         render_plan_artifacts(plan, staging)
@@ -460,7 +506,10 @@ def _publish_plan(
         _atomic_json(staging / "authorization-card.json", card.to_dict())
         _atomic_json(staging / "dag-audit.json", {"status": "reviewed", "node_count": len(nodes), "plan_revision": str(plan.version), "node_ids": [node.id for node in nodes]})
         _atomic_json(staging / "plan-confirmation.json", {"status": "confirmed", "plan_id": plan.plan_id, "plan_revision": str(plan.version), "authorization_digest": card.digest, "authorization_required": True})
-        os.replace(str(staging), str(destination))
+        if is_draft:
+            _replace_draft(destination, staging)
+        else:
+            os.replace(str(staging), str(destination))
     except BaseException:
         if staging.exists():
             shutil.rmtree(staging)
@@ -1206,6 +1255,14 @@ def run_cli(argv: Sequence[str], cwd: Path, runner=None) -> CLIResult:
     if args.command == "plan":
         try:
             entry = build_session_entry(args.request or "", args.s1, args.plan_id)
+            if args.from_prd and not args.s1:
+                # Publishing a draft keeps the S1 the session routed it with;
+                # re-scoring the text alone must never downgrade it.
+                inherited = draft_s1(_plan_root(paths, entry.plan_id))
+                if inherited is not None:
+                    drafted = build_session_entry(args.request or "", inherited, args.plan_id)
+                    if drafted.s1.total > entry.s1.total:
+                        entry = drafted
         except (TypeError, ValueError) as error:
             return _result(
                 BLOCKED,
@@ -1214,7 +1271,21 @@ def run_cli(argv: Sequence[str], cwd: Path, runner=None) -> CLIResult:
                 args.as_json,
             )
         screen = entry.s0
-        if screen.simple and not args.s1:
+        if args.from_prd and entry.route.route != "complex":
+            # A product spec only exists on the complex path; answering `ok`
+            # with a generic plan would silently discard it.
+            reason = (
+                "product_spec_requires_complex_route: request routed {} (S1={}); "
+                "publish with the draft's plan id or pass --s1".format(entry.route.route, entry.s1.total)
+            )
+            return _result(
+                BLOCKED,
+                {"command": "plan", "status": "blocked", "route": entry.route.route,
+                 "score": entry.s1.total, "plan_id": entry.plan_id, "reason": reason},
+                "规划已阻塞：" + reason,
+                args.as_json,
+            )
+        if screen.simple and not args.s1 and not args.from_prd:
             payload = {
                 "command": "plan",
                 "status": "ok",
@@ -1368,6 +1439,10 @@ def run_cli(argv: Sequence[str], cwd: Path, runner=None) -> CLIResult:
             "command": "plan",
             "status": "ok",
             "route": "complex",
+            "score": entry.s1.total,
+            # The draft is gone once published; republishing under a new id
+            # passes this back as --s1 to keep the same route.
+            "s1": _s1_arg(entry),
             "plan": plan.to_dict(),
             "nodes": [node.id for node in nodes],
             "authorization_card": card.to_dict(),
