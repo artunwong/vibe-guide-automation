@@ -457,7 +457,15 @@ class DraftReplacementBoundaryTests(_Project):
             "--from-prd", location,
         )
         self.assertEqual(again.payload.get("status"), "ok", again.payload)
+        # The new publish did not overwrite the old directory.
         self.assertEqual((self.plan_dir(plan_id) / "plan.json").read_bytes(), old_plan)
+        # Authorization goes to the new id only; it is recorded in state.json,
+        # not plan.json, so that is where the old id must stay absent.
+        authorized = self.cli("authorize", "--plan", plan_id + "-r2", "--authorize", "AUTHORIZE")
+        self.assertEqual(authorized.payload.get("status"), "ok", authorized.payload)
+        workflow = json.loads((self.root / ".vibe" / "state.json").read_text(encoding="utf-8"))["task_workflow"]
+        self.assertIn(plan_id + "-r2", workflow)
+        self.assertNotIn(plan_id, workflow)
 
     def test_a_publication_landing_mid_swap_is_not_overwritten(self):
         """Re-check what was actually moved aside, not what was seen before."""
