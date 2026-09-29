@@ -24,6 +24,7 @@ from .adapters.registry import AdapterRegistry
 from .adapters.task_provider import ProviderActionStore, ProviderPending
 from .models import IntegrationAcceptanceContract, node_branch, node_worktree
 from .prd_profiles import render_planning_brief
+from .scanner import resolve_rules_file
 
 #: Fields the agent / product manager supplies.  Only business semantics.
 PRODUCT_SPEC_FIELDS: Dict[str, Any] = {
@@ -205,7 +206,10 @@ def complete_node_contracts(raw_nodes: List[Dict[str, Any]], adapter_id: str, pr
 def derive_integration_contract(spec: Dict[str, Any], entry: Any, paths: Any) -> Dict[str, Any]:
     """Project the five-part integration contract from the plan itself."""
     node_ids = [str(node.get("id")) for node in spec.get("nodes") or [] if isinstance(node, dict) and node.get("id")]
-    agents_ref = "AGENTS.md" if (paths.root / "AGENTS.md").is_file() else ".vibe/proposals/agentsmd/proposal.md"
+    agents_ref = (
+        resolve_rules_file(paths.root)
+        or ".vibe/proposals/agentsmd/proposal.md"
+    )
     contract = {
         "iteration_context": {
             "kind": "iteration",

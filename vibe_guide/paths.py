@@ -51,7 +51,7 @@ def _git_root(start: Path) -> Optional[Path]:
 def _marker_root(start: Path) -> Optional[Path]:
     current = start
     while True:
-        for marker in (".project-root", "AGENTS.md", "CLAUDE.md"):
+        for marker in (".project-root", "AGENTS.md", "CODEBUDDY.md", "CLAUDE.md"):
             if (current / marker).exists():
                 return _canonical(current)
         if current == current.parent:

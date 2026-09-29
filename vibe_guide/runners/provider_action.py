@@ -35,7 +35,11 @@ from ..task_registry import (
 )
 from ..workflow_gate import session_contract_prompt
 from ..state import read_writer_lease
-from ..providers import CLAUDE_CODE_PROVIDER, CODEX_PROVIDER
+from ..providers import (
+    CLAUDE_CODE_PROVIDER,
+    CODEX_PROVIDER,
+    WORKBUDDY_VISIBLE_PROVIDER,
+)
 
 
 #: Native desktop tools per visible provider, one definition for the five
@@ -59,6 +63,13 @@ NATIVE_TOOL_MAP: Dict[str, Dict[str, str]] = {
         "visibility": "ccd_session_mgmt__get_session",
         "resume": "ccd_session_mgmt__send_message",
         "wait": "ccd_session_mgmt__list_events",
+    },
+    WORKBUDDY_VISIBLE_PROVIDER: {
+        "create": "workbuddy_job__create",
+        "locate": "workbuddy_job__get",
+        "visibility": "workbuddy_job__list",
+        "resume": "workbuddy_job__reply",
+        "wait": "workbuddy_job__wait",
     },
 }
 

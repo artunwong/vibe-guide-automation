@@ -179,6 +179,7 @@ def _scan_payload(paths: ProjectPaths) -> Dict[str, Any]:
         "git_root": report.git_root,
         "git_remote": report.git_remote,
         "agentsmd_exists": report.agentsmd_exists,
+        "rules_file": getattr(report, "rules_file", None),
         "knowledge_exists": report.knowledge_exists,
         "vibe_exists": report.vibe_exists,
         "skills": report.skills,

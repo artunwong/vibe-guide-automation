@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -23,6 +24,33 @@ _CONFIG_LIMIT = 64 * 1024
 _SKILL_LIMIT = 64
 _FULL_SHA = re.compile(r"^[0-9a-fA-F]{40}$")
 _SKILL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+#: Host-loaded project rule files, in resolution order.  AGENTS.md leads so
+#: every existing Codex/Claude project resolves exactly as it does today; a
+#: WorkBuddy host loads CODEBUDDY.md and never looks at AGENTS.md, so without
+#: this a WorkBuddy project is reported as "missing AGENTS.md" and the rules
+#: vibe writes land in a file no host ever reads.
+RULES_FILE_CANDIDATES = ('AGENTS.md', 'CODEBUDDY.md', 'CLAUDE.md')
+
+
+def resolve_rules_file(root):
+    """Return the name of the project's host-loaded rule file, or None.
+
+    Only a real, non-symlinked file counts -- the same rule the rest of the
+    scanner applies to AGENTS.md, kept here so a symlinked candidate is never
+    treated as evidence.
+    """
+    base = Path(root)
+    for name in RULES_FILE_CANDIDATES:
+        candidate = base / name
+        try:
+            if candidate.is_symlink() or not candidate.is_file():
+                continue
+        except OSError:
+            continue
+        return name
+    return None
+
 
 CAPABILITY_RULE_MARKER = "Capability and Tool Truth"
 CAPABILITY_RULES = """## Capability and Tool Truth
@@ -60,6 +88,7 @@ class ScanReport:
     skills: List[dict]
     agent_commands: Dict[str, bool] = field(default_factory=dict)
     skill_records_error: Optional[str] = None
+    rules_file: Optional[str] = None
 
 
 @dataclass
@@ -84,7 +113,233 @@ def _run(*args):
     return completed.stdout.strip()
 
 
-def _configured_skills(vibe):
+WORKBUDDY_ORIGIN = 'workbuddy'
+#: No git remote backs a host-managed skill.  A synthetic github URL would
+#: make `install_skill()` try to clone something that does not exist, so the
+#: source stays an unmistakable local marker instead.
+WORKBUDDY_LOCAL_SOURCE = '<workbuddy-local>'
+WORKBUDDY_SKILLS_SUBDIR = 'skills'
+WORKBUDDY_PROJECT_SUBDIR = '.workbuddy'
+_SKILL_MANIFEST = 'SKILL.md'
+_SKILL_MANIFEST_SCAN_LINES = 64
+
+
+def _is_real_dir(path):
+    return path.is_dir() and not path.is_symlink()
+
+
+def workbuddy_config_dir():
+    """Absolute path of the WorkBuddy config dir, or None when there is none.
+
+    Honours the same environment override the host honours and refuses a
+    relative value, so an untrusted project can never point discovery at a
+    directory of its own choosing.
+    """
+    raw = (
+        os.environ.get('WORKBUDDY_CONFIG_DIR')
+        or os.environ.get('CODEBUDDY_CONFIG_DIR')
+    )
+    if raw:
+        candidate = Path(raw).expanduser()
+        return candidate if candidate.is_absolute() else None
+    return Path.home() / WORKBUDDY_PROJECT_SUBDIR
+
+
+def workbuddy_skill_roots(paths=None):
+    """Existing host skill roots, project-level first.
+
+    Returns an empty list on a host that has no WorkBuddy config directory,
+    which keeps every non-WorkBuddy project -- macOS/Codex included -- exactly
+    as it behaves today.
+    """
+    roots = []
+    if paths is not None:
+        try:
+            project = (
+                Path(paths.root)
+                / WORKBUDDY_PROJECT_SUBDIR
+                / WORKBUDDY_SKILLS_SUBDIR
+            )
+        except (TypeError, AttributeError):
+            project = None
+        if project is not None and _is_real_dir(project):
+            roots.append(project)
+    config = workbuddy_config_dir()
+    if config is not None:
+        user = config / WORKBUDDY_SKILLS_SUBDIR
+        if _is_real_dir(user) and user not in roots:
+            roots.append(user)
+    return roots
+
+
+def _skill_manifest_name(manifest):
+    """Read `name:` from a SKILL.md frontmatter, or None.
+
+    Bounded: only the leading block and only its first lines are parsed, so a
+    hostile or huge manifest cannot drag the scanner down with it.  A host
+    falls back to the directory name when the frontmatter omits `name`, and
+    the caller mirrors that.
+    """
+    try:
+        with manifest.open('r', encoding='utf-8', errors='replace') as handle:
+            lines = []
+            for index, line in enumerate(handle):
+                if index >= _SKILL_MANIFEST_SCAN_LINES:
+                    break
+                lines.append(line)
+    except OSError:
+        return None
+    if not lines or not lines[0].strip().startswith('---'):
+        return None
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped.startswith('---'):
+            break
+        match = re.match(r'^name:\s*(.+?)\s*$', stripped)
+        if match:
+            value = match.group(1).strip().strip('"').strip("'")
+            return value or None
+    return None
+
+
+def _host_skill_record(directory):
+    """Build a skill record from a host-managed skill directory on disk.
+
+    The directory itself is the evidence: real directory, real SKILL.md.
+    Anything else yields no record rather than an invalid one -- a skill the
+    host does not load is simply absent, while an invalid record would trip
+    the doctor's "malformed" gate and block the whole project.
+    """
+    if directory.is_symlink() or not directory.is_dir():
+        return None
+    manifest = directory / _SKILL_MANIFEST
+    if manifest.is_symlink() or not manifest.is_file():
+        return None
+    name = _skill_manifest_name(manifest) or directory.name
+    if not _SKILL_NAME.fullmatch(name):
+        return None
+    return {
+        'name': name,
+        'source': WORKBUDDY_LOCAL_SOURCE,
+        'commit': '',
+        'origin': WORKBUDDY_ORIGIN,
+        'path': str(directory),
+        'valid': True,
+    }
+
+
+def _host_skills(paths=None):
+    """Discover every skill the host already provides, keyed by name."""
+    found = {}
+    for root in workbuddy_skill_roots(paths):
+        try:
+            entries = sorted(root.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if len(found) >= _SKILL_LIMIT:
+                break
+            record = _host_skill_record(entry)
+            if record is None:
+                continue
+            found.setdefault(record['name'], record)
+    return list(found.values())
+
+
+def _merge_skills(configured, discovered):
+    """Configured records first; discovery only fills the gaps.
+
+    A project that pinned a skill keeps its own record, valid or not --
+    discovery never overrides and never downgrades it, so adding discovery can
+    only shrink the doctor's issue list, never grow it.
+    """
+    merged = list(configured)
+    known = {
+        record.get('name')
+        for record in configured
+        if isinstance(record, dict) and record.get('name')
+    }
+    for record in discovered:
+        if len(merged) >= _SKILL_LIMIT:
+            break
+        if record['name'] in known:
+            continue
+        merged.append(record)
+        known.add(record['name'])
+    return merged
+
+
+def _is_within(child, parent):
+    try:
+        child.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def _resolved_roots(paths=None):
+    """Host skill roots plus the project root, all symlink-resolved."""
+    resolved = []
+    for root in workbuddy_skill_roots(paths):
+        try:
+            resolved.append(root.resolve(strict=False))
+        except OSError:
+            continue
+    if paths is not None:
+        try:
+            resolved.append(Path(paths.root).resolve(strict=False))
+        except (TypeError, AttributeError, OSError):
+            pass
+    return resolved
+
+
+def _configured_host_skill(record, paths):
+    """Validate a skill the project pinned from the host's own directory.
+
+    Evidence is on disk: the directory must exist, hold a real SKILL.md, carry
+    a matching name and stay inside a host skill root or the project.  That
+    last bound is what stops a config entry from pointing at some arbitrary
+    path and claiming a skill the host never loads.
+    """
+    name = record.get('name') if isinstance(record.get('name'), str) else ''
+    location = record.get('path') if isinstance(record.get('path'), str) else ''
+    rejected = {
+        'name': name[:128],
+        'source': WORKBUDDY_LOCAL_SOURCE,
+        'commit': '',
+        'origin': WORKBUDDY_ORIGIN,
+        'path': location,
+        'valid': False,
+    }
+    if not _SKILL_NAME.fullmatch(name):
+        return rejected
+    allowed = _resolved_roots(paths)
+    candidates = []
+    if location:
+        raw = Path(location).expanduser()
+        if raw.is_absolute():
+            candidates.append(raw)
+        elif paths is not None:
+            candidates.append(Path(paths.root) / raw)
+    else:
+        candidates.extend(root / name for root in workbuddy_skill_roots(paths))
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve(strict=False)
+        except OSError:
+            continue
+        if not any(_is_within(resolved, root) for root in allowed):
+            continue
+        disk = _host_skill_record(resolved)
+        if disk is None or disk['name'] != name:
+            continue
+        accepted = dict(disk)
+        accepted['path'] = str(resolved)
+        return accepted
+    return rejected
+
+
+def _configured_skills(vibe, paths=None):
     config = vibe / 'config.json'
     if not config.exists():
         return [], None
@@ -126,6 +381,27 @@ def _configured_skills(vibe):
         commit = (
             record.get('commit') if isinstance(record.get('commit'), str) else ''
         )
+        origin = (
+            record.get('origin') if isinstance(record.get('origin'), str) else ''
+        )
+        if origin:
+            # An explicit origin is a claim about where the skill comes from.
+            # Anything other than the one origin this build understands fails
+            # closed: guessing would let a pinned record masquerade as a
+            # github source it never claimed to be.
+            if origin != WORKBUDDY_ORIGIN:
+                result.append(
+                    {
+                        'name': name[:128],
+                        'source': '<invalid-source>',
+                        'commit': '',
+                        'origin': origin[:64],
+                        'valid': False,
+                    }
+                )
+                continue
+            result.append(_configured_host_skill(record, paths))
+            continue
         try:
             canonical_source = normalize_github_source(source)
             source_valid = True
@@ -157,13 +433,17 @@ def scan_project(paths):
     )
     python_version = _run('python3', '--version')
     git_version = _run('git', '--version')
-    agentsmd = root / 'AGENTS.md'
+    rules_file = resolve_rules_file(root)
+    agentsmd = root / (rules_file or RULES_FILE_CANDIDATES[0])
     vibe = root / '.vibe'
-    agentsmd_exists = agentsmd.is_file() and not agentsmd.is_symlink()
+    agentsmd_exists = rules_file is not None
     if not vibe.exists() or vibe.is_symlink() or not vibe.is_dir():
         skills, skill_records_error = [], 'invalid .vibe directory'
     else:
-        skills, skill_records_error = _configured_skills(vibe)
+        skills, skill_records_error = _configured_skills(vibe, paths)
+        # Discovery runs only once .vibe is a real directory, so the
+        # 'invalid .vibe directory' verdict above keeps its meaning.
+        skills = _merge_skills(skills, _host_skills(paths))
     commands = {
         command: shutil.which(command) is not None for command in _AGENT_COMMANDS
     }
@@ -185,6 +465,7 @@ def scan_project(paths):
         skills=skills,
         agent_commands=commands,
         skill_records_error=skill_records_error,
+        rules_file=rules_file,
     )
 
 

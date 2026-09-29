@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import re
 from .diagnostics import diagnose_skill, build_skill_reference_proposal, build_agentsmd_proposal, check_agents_contract
+from .scanner import WORKBUDDY_ORIGIN
 
 
 _PYTHON_VERSION = re.compile(r"Python\s+(\d+)\.(\d+)")
@@ -28,11 +29,22 @@ def doctor(report):
         match and (int(match.group(1)), int(match.group(2))) >= (3, 9)
     )
     git_available = bool(report.git_version)
+    # Older / hand-built ScanReport objects predate the field, so fall back to
+    # the historical name rather than raising AttributeError.
+    rules_file = getattr(report, 'rules_file', None)
     valid_skills = [skill for skill in report.skills if skill.get('valid')]
     configured_names = sorted(
         skill.get('name', '') for skill in valid_skills if skill.get('name')
     )
     required_skill = _REQUIRED_SKILL in configured_names
+    host_provided = sorted(
+        skill.get('name', '')
+        for skill in report.skills
+        if isinstance(skill, dict)
+        and skill.get('valid')
+        and skill.get('origin') == WORKBUDDY_ORIGIN
+        and skill.get('name')
+    )
     available_agents = sorted(
         command
         for command, available in report.agent_commands.items()
@@ -46,7 +58,7 @@ def doctor(report):
     if not git_available:
         issues.append('git unavailable')
     if not report.agentsmd_exists:
-        issues.append('missing AGENTS.md')
+        issues.append('missing ' + (rules_file or 'AGENTS.md'))
     if not report.knowledge_exists:
         issues.append('missing .vibe/knowledge')
     if report.skill_records_error:
@@ -65,10 +77,11 @@ def doctor(report):
             'version': report.python_version,
         },
         'git': {'available': git_available, 'version': report.git_version},
-        'rules': {'present': report.agentsmd_exists},
+        'rules': {'present': report.agentsmd_exists, 'file': rules_file},
         'knowledge': {'present': report.knowledge_exists},
         'skills': {
             'configured': configured_names,
+            'host_provided': host_provided,
             'required_configured': required_skill,
             'records_valid': (
                 report.skill_records_error is None

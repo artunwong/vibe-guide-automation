@@ -11,6 +11,7 @@ from .scanner import (
     VIBE_ENTRY_RULE_MARKER,
     build_agentsmd_patch,
     missing_agentsmd_blocks,
+    resolve_rules_file,
     scan_project,
 )
 from .protocols import (
@@ -516,6 +517,17 @@ def _fence_marker(line):
     return ""
 
 
+def _rules_target(root):
+    """Pick the rule file `apply-agentsmd` appends to.
+
+    A project already carrying a host-loaded rule file gets the rules there,
+    so a WorkBuddy project's CODEBUDDY.md -- the only file its host reads --
+    actually receives them.  A project with none still gets AGENTS.md, which
+    is what every host loads and what older releases always wrote.
+    """
+    return root / (resolve_rules_file(root) or "AGENTS.md")
+
+
 def apply_agentsmd_proposal(paths, confirm):
     """Apply the generated capability rules only after explicit confirmation.
 
@@ -549,9 +561,9 @@ def apply_agentsmd_proposal(paths, confirm):
     # proposal.md would leave that increment on disk forever: the rule would
     # never reach AGENTS.md and nothing would say so.  Section-level dedup
     # below makes reading both safe.
-    target = root / "AGENTS.md"
+    target = _rules_target(root)
     if target.is_symlink() or (target.exists() and not target.is_file()):
-        raise ValueError("AGENTS.md must be a regular file")
+        raise ValueError(target.name + " must be a regular file")
     existing = target.read_text(encoding="utf-8") if target.exists() else ""
     # Append only the sections this AGENTS.md still lacks, judging each by its
     # own heading.  Keying the whole append on one marker would strand every
@@ -577,7 +589,7 @@ def apply_agentsmd_proposal(paths, confirm):
     else:
         content = proposal
     descriptor, temporary_name = tempfile.mkstemp(
-        prefix=".AGENTS.md.", dir=str(root)
+        prefix="." + target.name + ".", dir=str(root)
     )
     temporary = Path(temporary_name)
     try:
@@ -589,4 +601,4 @@ def apply_agentsmd_proposal(paths, confirm):
     finally:
         if temporary.exists():
             temporary.unlink()
-    return InitResult(True, ["AGENTS.md"])
+    return InitResult(True, [target.name])
