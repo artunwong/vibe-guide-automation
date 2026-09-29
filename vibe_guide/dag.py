@@ -832,6 +832,102 @@ def _parallel_group_errors(nodes: List[DAGNode]) -> Dict[str, List[str]]:
     return errors
 
 
+def _conflict_write_scope(node: DAGNode) -> Optional[List[str]]:
+    """Collect every declared writable path for conflict audit.
+
+    Authorization-era contracts may declare ``files`` while monitor-era
+    worker profiles declare ``allowlist``/``owned_paths``; all of them are
+    write scope for collision purposes.  Malformed sources return ``None``
+    (unverifiable) rather than silently shrinking the scope.
+    """
+    contract = node.contract if isinstance(node.contract, Mapping) else {}
+    raw: List[str] = []
+    sources = (
+        _node_metadata(node, "allowlist"),
+        getattr(node, "owned_paths", None),
+        contract.get("allowlist"),
+        contract.get("owned_paths"),
+        contract.get("files"),
+    )
+    for source in sources:
+        if source is None:
+            continue
+        if not isinstance(source, (list, tuple)) or not all(
+            isinstance(item, str) and item.strip() for item in source
+        ):
+            return None
+        raw.extend(item.strip() for item in source)
+    normalized: List[str] = []
+    for item in raw:
+        if item == ".":
+            candidate = item
+        else:
+            try:
+                candidate = normalize_project_path(item)
+            except ValueError:
+                return None
+        if candidate not in normalized:
+            normalized.append(candidate)
+    return normalized or None
+
+
+def _write_scope_conflict_errors(nodes: List[DAGNode]) -> Dict[str, List[str]]:
+    """Audit overlapping write scopes between separately dispatchable nodes.
+
+    ``_parallel_group_errors`` covers members of one explicit
+    ``parallel_group``.  This complementary plan/authorization gate covers
+    every unordered node pair: overlapping write scope is legal only when a
+    ``depends_on`` edge serializes the pair.  Otherwise both may be
+    dispatched independently while editing the same paths.  Pairs already
+    inside one parallel group are skipped because the group audit emits the
+    more specific message.
+    """
+    _WRITER_HOLDING = ("planned", "ready", "running", "rework", "review", "brief_pending")
+    _DISPATCH_ELIGIBLE = ("planned", "ready")
+    by_id = {node.id: node for node in nodes}
+    scopes: Dict[str, Optional[List[str]]] = {}
+    groups: Dict[str, str] = {}
+    for node in nodes:
+        if node.status not in _WRITER_HOLDING or is_integration_review_node(node):
+            continue
+        group = _node_metadata(node, "parallel_group")
+        groups[node.id] = str(group) if group is not None else ""
+        scopes[node.id] = _conflict_write_scope(node)
+
+    errors: Dict[str, List[str]] = {}
+
+    def attach(member: DAGNode, message: str) -> None:
+        if member.status in _DISPATCH_ELIGIBLE:
+            errors.setdefault(member.id, []).append(message)
+
+    for index, left in enumerate(by_id.values()):
+        if left.id not in scopes:
+            continue
+        for right in list(by_id.values())[index + 1:]:
+            if right.id not in scopes:
+                continue
+            if left.id in right.depends_on or right.id in left.depends_on:
+                continue
+            left_scope = scopes[left.id]
+            right_scope = scopes[right.id]
+            if left_scope is None or right_scope is None:
+                continue
+            overlaps = sorted({
+                path for path in left_scope for other in right_scope
+                if _write_paths_overlap(path, other)
+            })
+            if overlaps:
+                message = (
+                    "nodes {} and {} have overlapping write scope ({}); "
+                    "add depends_on, relabel integration_after, or split the paths".format(
+                        left.id, right.id, ", ".join(overlaps[:3])
+                    )
+                )
+                attach(left, message)
+                attach(right, message)
+    return errors
+
+
 def audit_dag(plan: Plan) -> DAGAuditResult:
     """Audit executable readiness; only hard dependencies block startup."""
     nodes = list(getattr(plan, "nodes", []) or [])
@@ -901,6 +997,9 @@ def audit_dag(plan: Plan) -> DAGAuditResult:
 
     for node_id, group_reasons in _parallel_group_errors(nodes).items():
         reasons.setdefault(node_id, []).extend(group_reasons)
+
+    for node_id, write_scope_errors in _write_scope_conflict_errors(nodes).items():
+        reasons.setdefault(node_id, []).extend(write_scope_errors)
 
     ready: List[str] = []
     for node in nodes:

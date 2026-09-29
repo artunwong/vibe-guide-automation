@@ -111,6 +111,12 @@ class AuthorizationTests(unittest.TestCase):
             )
         )
 
+    def test_authorization_rejects_overlapping_parallel_write_scope(self):
+        nodes = [node("n1", ["README.md"], "worker-1"), node("n2", ["README.md"], "worker-2")]
+        plan = Plan("plan-overlap", 1, "docs/prd.md", ["n1", "n2"], "draft")
+        with self.assertRaisesRegex(ValueError, "write scope"):
+            build_authorization_card(plan, nodes, self.capabilities)
+
     def test_full_executable_contract_is_bound_and_excluded_actions_are_rejected(self):
         base = node("n1", ["safe.py"])
         base.contract.update(

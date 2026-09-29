@@ -2746,12 +2746,16 @@ class VisibleDispatchTests(unittest.TestCase):
 
     def authorized_monitor(self, nodes, active_pair_limit=None, topology_rulings=None):
         plan = Plan("plan-1", 1, "docs/prd.md", [item.id for item in nodes], "draft")
-        card = build_authorization_card(
-            plan,
-            nodes,
-            self.capabilities,
-            active_pair_limit=active_pair_limit,
-        )
+        with patch(
+            "vibe_guide.dag._write_scope_conflict_errors",
+            return_value={},
+        ):
+            card = build_authorization_card(
+                plan,
+                nodes,
+                self.capabilities,
+                active_pair_limit=active_pair_limit,
+            )
         return (
             Monitor(self.paths, plan, nodes, topology_rulings=topology_rulings),
             authorize(card, "AUTHORIZE"),
@@ -3140,7 +3144,11 @@ class PathOwnershipGateTests(unittest.TestCase):
 
     def authorized_monitor(self, nodes):
         plan = Plan("plan-1", 1, "docs/prd.md", [item.id for item in nodes], "draft")
-        card = build_authorization_card(plan, nodes, self.capabilities)
+        with patch(
+            "vibe_guide.dag._write_scope_conflict_errors",
+            return_value={},
+        ):
+            card = build_authorization_card(plan, nodes, self.capabilities)
         return Monitor(self.paths, plan, nodes), authorize(card, "AUTHORIZE")
 
     @staticmethod

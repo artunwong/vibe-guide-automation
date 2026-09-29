@@ -943,6 +943,15 @@ def build_authorization_card(
     node_ids = tuple(sorted(node.id for node in nodes))
     if node_ids != tuple(sorted(plan.node_ids)):
         raise ValueError("authorization nodes must exactly match the plan")
+    from .dag import _write_scope_conflict_errors
+
+    conflicts = _write_scope_conflict_errors(nodes)
+    if conflicts:
+        reasons = [
+            "{}: {}".format(node_id, "; ".join(node_reasons))
+            for node_id, node_reasons in sorted(conflicts.items())
+        ]
+        raise ValueError("blocked_dag write scope conflict: " + " | ".join(reasons))
     contract_digest = executable_contract_digest(nodes)
     normalized_contracts = {
         node.id: _normalize_contract(node.contract, "contract." + node.id)
